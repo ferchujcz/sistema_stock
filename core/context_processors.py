@@ -1,7 +1,7 @@
 # core/context_processors.py
 from django.utils import timezone
 from django.db.models import Sum, F, Q
-from .models import Stock, Producto, PerfilUsuario
+from .models import Stock, Producto, PerfilUsuario, Sucursal
 
 def alertas_globales(request):
     # Si el usuario no está logueado, no mostramos alertas
@@ -74,6 +74,26 @@ def alertas_globales(request):
     
     total_alertas += sin_fecha
 
+    todas_sucursales = []
+    sucursal_actual_nombre = "Sin Asignar"
+
+    if request.user.is_authenticated:
+        if request.user.is_superuser:
+            todas_sucursales = Sucursal.objects.all()
+
+        # Tratamos de averiguar el nombre de la sucursal actual para mostrarlo
+        # (Repetimos lógica de vista por limitación de context processor, o usamos una variable de sesión si ya la seteamos)
+        if request.user.is_superuser and request.session.get('sucursal_seleccionada_id'):
+             try:
+                 s = Sucursal.objects.get(id=request.session.get('sucursal_seleccionada_id'))
+                 sucursal_actual_nombre = s.nombre
+             except: pass
+        elif hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.sucursal:
+             sucursal_actual_nombre = request.user.perfilusuario.sucursal.nombre
+
+    # Añadimos al return existente
     return {
-        'alertas_vencimiento_count': total_alertas
+        'alertas_vencimiento_count': total_alertas, # (El que ya tenías)
+        'ctx_todas_sucursales': todas_sucursales,   # <-- NUEVO
+        'ctx_sucursal_actual_nombre': sucursal_actual_nombre # <-- NUEVO
     }

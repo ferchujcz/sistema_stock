@@ -37,13 +37,28 @@ from .models import (
 
 # --- Helper Function ---
 def obtener_sucursal_usuario(request):
-    """Obtiene la sucursal del usuario logueado o None si no la tiene."""
+    """
+    Devuelve la sucursal activa.
+    - Si es Superusuario: Busca en la sesión, luego en el perfil.
+    - Si es Empleado: Busca siempre en el perfil (fijo).
+    """
+    # 1. Si es Superusuario, priorizamos la selección temporal (sesión)
+    if request.user.is_superuser:
+        sucursal_id_session = request.session.get('sucursal_seleccionada_id')
+        if sucursal_id_session:
+            try:
+                return Sucursal.objects.get(id=sucursal_id_session)
+            except Sucursal.DoesNotExist:
+                pass # Si falla, volvemos al perfil
+    
+    # 2. Si no hay sesión (o no es superuser), usamos el perfil de base de datos
     try:
         perfil = getattr(request.user, 'perfilusuario', None)
         if perfil and perfil.sucursal:
             return perfil.sucursal
     except PerfilUsuario.DoesNotExist:
         pass
+        
     return None
 
 # ==============================================================================
@@ -1786,3 +1801,20 @@ def cerrar_turno(request):
         'caja_calculada': caja_calculada,
     }
     return render(request, 'core/cerrar_turno.html', context)
+
+@login_required
+def cambiar_sucursal_sesion(request, sucursal_id):
+    if not request.user.is_superuser:
+        messages.error(request, "Solo el administrador puede cambiar de sucursal.")
+        return redirect('dashboard')
+        
+    try:
+        sucursal = get_object_or_404(Sucursal, id=sucursal_id)
+        # Guardamos el ID en la sesión del navegador
+        request.session['sucursal_seleccionada_id'] = sucursal.id
+        messages.success(request, f"Ahora estás administrando: {sucursal.nombre}")
+    except Exception as e:
+        messages.error(request, "Error al cambiar de sucursal.")
+    
+    # Volvemos a la página desde donde hizo clic (o al dashboard)
+    return redirect(request.META.get('HTTP_REFERER', 'dashboard'))

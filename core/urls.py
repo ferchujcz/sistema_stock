@@ -6,6 +6,7 @@ urlpatterns = [
     # --- VISTAS PRINCIPALES Y DE STOCK ---
     path('stock-sucursal/<int:sucursal_id>/', views.admin_stock_por_sucursal, name='admin_stock_por_sucursal'),
     path('', views.dashboard, name='dashboard'),
+    path('cambiar-sucursal/<int:sucursal_id>/', views.cambiar_sucursal_sesion, name='cambiar_sucursal_sesion'),
     path('stock/', views.stock_detalle, name='stock_detalle'),
     path('producto/<int:producto_id>/lotes/', views.detalle_producto_lotes, name='detalle_producto_lotes'),
     path('stock/nuevo/', views.agregar_stock, name='agregar_stock'),
