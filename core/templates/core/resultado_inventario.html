@@ -1,0 +1,103 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<h1>Resultado del Inventario Físico - {{ sucursal_actual.nombre }}</h1>
+
+{% if discrepancias %}
+    <p class="lead">Se encontraron las siguientes diferencias entre el conteo físico y el stock del sistema:</p>
+    
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Cantidad Contada</th>
+                            <th>Cantidad en Sistema</th>
+                            <th>Diferencia</th>
+                            <th>Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in discrepancias %}
+                        <tr>
+                            <td>{{ item.producto_nombre }}</td>
+                            <td>{{ item.contado }}</td>
+                            <td>{{ item.sistema }}</td>
+                            <td class="fw-bold">{{ item.diferencia }}</td>
+                            <td>
+                                {% if item.diferencia > 0 %}
+                                    <span class="badge bg-success">Sobrante (+Stock)</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Faltante (-Stock)</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center p-3 bg-light border rounded">
+        <div class="text-danger">
+            <i class="bi bi-exclamation-triangle-fill"></i> <strong>Atención:</strong> El stock del sistema aún no ha sido modificado.
+        </div>
+        <button type="button" class="btn btn-danger btn-lg" data-bs-toggle="modal" data-bs-target="#confirmarAjusteModal">
+            <i class="bi bi-magic"></i> Aplicar Ajustes al Stock
+        </button>
+    </div>
+
+{% else %}
+    <div class="alert alert-success text-center p-5 shadow-sm">
+        <h1 class="display-4"><i class="bi bi-check-circle-fill text-success"></i></h1>
+        <h3>¡Todo perfecto!</h3>
+        <p>El conteo físico coincide exactamente con el stock del sistema.</p>
+    </div>
+{% endif %}
+
+<div class="mt-4">
+    <a href="{% url 'contar_inventario' %}" class="btn btn-secondary">Realizar otro conteo</a>
+    <a href="{% url 'dashboard' %}" class="btn btn-outline-primary">Volver al Dashboard</a>
+</div>
+
+<div class="modal fade" id="confirmarAjusteModal" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title" id="modalLabel"><i class="bi bi-exclamation-octagon-fill"></i> ¡Acción Irreversible!</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Estás a punto de <strong>modificar el stock real</strong> del sistema para que coincida con tu conteo físico.</p>
+        <ul class="small text-muted">
+            <li>Los faltantes se descontarán de los lotes más antiguos.</li>
+            <li>Los sobrantes se sumarán a un lote general en depósito.</li>
+        </ul>
+        <p class="fw-bold mt-3">¿Estás seguro de que querés continuar?</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        
+        <form action="{% url 'aplicar_ajuste_inventario' %}" method="post">
+            {% csrf_token %}
+            
+            {# --- PARTE CRÍTICA: PASAR LOS DATOS AL BACKEND --- #}
+            {% for item in discrepancias %}
+                {% if item.diferencia != 0 %}
+                    {# Generamos un input oculto por cada diferencia #}
+                    {# IMPORTANTE: La vista anterior debe haber pasado 'producto_id' en el objeto item #}
+                    <input type="hidden" name="ajuste_{{ item.producto_id }}" value="{{ item.diferencia }}">
+                {% endif %}
+            {% endfor %}
+            
+            <button type="submit" class="btn btn-danger">Sí, Ajustar Stock</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

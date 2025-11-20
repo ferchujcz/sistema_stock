@@ -1,0 +1,72 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-9 col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">{% if proveedor %}Editar Proveedor{% else %}Añadir Nuevo Proveedor{% endif %}</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <label for="nombre" class="form-label">Nombre del Proveedor (Requerido)</label>
+                            <input type="text" name="nombre" id="nombre" class="form-control" value="{{ proveedor.nombre|default:'' }}" required>
+                        </div>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="telefono" class="form-label">Teléfono</label>
+                            <input type="text" name="telefono" id="telefono" class="form-control" value="{{ proveedor.telefono|default:'' }}">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="email" class="form-label">Email</label>
+                            <input type="email" name="email" id="email" class="form-control" value="{{ proveedor.email|default:'' }}">
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label for="dia_semana_reparto" class="form-label">Día de Reparto Principal</label>
+                            <select name="dia_semana_reparto" id="dia_semana_reparto" class="form-select">
+                                <option value="">--- Seleccionar ---</option>
+                                <option value="0" {% if proveedor.dia_semana_reparto == 0 %}selected{% endif %}>Lunes</option>
+                                <option value="1" {% if proveedor.dia_semana_reparto == 1 %}selected{% endif %}>Martes</option>
+                                <option value="2" {% if proveedor.dia_semana_reparto == 2 %}selected{% endif %}>Miércoles</option>
+                                <option value="3" {% if proveedor.dia_semana_reparto == 3 %}selected{% endif %}>Jueves</option>
+                                <option value="4" {% if proveedor.dia_semana_reparto == 4 %}selected{% endif %}>Viernes</option>
+                                <option value="5" {% if proveedor.dia_semana_reparto == 5 %}selected{% endif %}>Sábado</option>
+                                <option value="6" {% if proveedor.dia_semana_reparto == 6 %}selected{% endif %}>Domingo</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="frecuencia_reparto" class="form-label">Frecuencia</label>
+                            <select name="frecuencia_reparto" id="frecuencia_reparto" class="form-select">
+                                <option value="">--- Seleccionar ---</option>
+                                <option value="7" {% if proveedor.frecuencia_reparto == 7 %}selected{% endif %}>Semanal</option>
+                                <option value="14" {% if proveedor.frecuencia_reparto == 14 %}selected{% endif %}>Quincenal</option>
+                                <option value="30" {% if proveedor.frecuencia_reparto == 30 %}selected{% endif %}>Mensual</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'listar_proveedores' %}" class="btn btn-secondary btn-lg">
+                            <i class="bi bi-x-circle"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-save"></i> Guardar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

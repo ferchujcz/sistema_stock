@@ -1,0 +1,42 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-9 col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="bi bi-camera"></i> Cargar Factura por Foto (OCR)
+                </h4>
+            </div>
+            <div class="card-body">
+                <p class="lead">Sube una foto clara de tu factura, remito o ticket. El sistema intentará leer los productos y cantidades automáticamente.</p>
+
+                <div class="alert alert-info d-flex align-items-center" role="alert">
+                    <i class="bi bi-phone-fill me-2 fs-4"></i>
+                    <div>
+                        <strong>¡Función ideal para celular!</strong> Si abrís esta página desde tu teléfono, al presionar "Seleccionar imagen", tendrás la opción de **tomar una foto en el momento** o elegir una de tu galería.
+                    </div>
+                </div>
+
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="imagen_factura" class="form-label">
+                            <i class="bi bi-image"></i> Selecciona la imagen de la factura
+                        </label>
+                        <input type="file" name="imagen_factura" class="form-control" id="imagen_factura" accept="image/*" required>
+                        <div class="form-text">Formatos aceptados: JPG, PNG. Asegúrate de que la imagen sea clara y tenga buena luz.</div>
+                    </div>
+                    
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-robot"></i> Procesar Imagen
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

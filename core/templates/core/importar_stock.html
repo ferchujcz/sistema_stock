@@ -1,0 +1,46 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-9 col-lg-7">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Importar Stock desde Excel</h4>
+            </div>
+            <div class="card-body">
+
+                <h5 class="card-title">Paso 1: Descargar la Plantilla</h5>
+                <p>Para evitar errores, descargá la plantilla oficial. Esto asegura que todas las columnas tengan el nombre correcto.</p>
+                <a href="{% url 'descargar_plantilla_excel' %}" class="btn btn-success mb-4">
+                    <i class="bi bi-file-earmark-spreadsheet-fill"></i> Descargar Plantilla.xlsx
+                </a>
+
+                <h5 class="card-title mt-3">Paso 2: Llenar el Excel</h5>
+                <p>Completá el archivo que descargaste. Tené en cuenta:</p>
+                <ul>
+                    <li><strong>Campos obligatorios:</strong> <code>codigo_barras</code> y <code>cantidad</code>.</li>
+                    <li><strong>Para productos nuevos:</strong> Asegurate de completar también <code>nombre</code>, <code>costo</code> y <code>precio_venta</code>.</li>
+                    <li><strong>Opcionales:</strong> <code>fecha_vencimiento</code>, <code>ubicacion</code>, <code>proveedor_nombre</code> (si el proveedor no existe, se creará uno nuevo).</li>
+                </ul>
+
+                <h5 class="card-title mt-4">Paso 3: Subir el Archivo</h5>
+                <p>Una vez que el archivo esté listo, subilo acá:</p>
+
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="archivo_excel" class="form-label">Seleccioná tu archivo Excel completado</label>
+                        <input type="file" name="archivo_excel" class="form-control" id="archivo_excel" accept=".xlsx, .xls" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-upload"></i> Importar Stock
+                        </button>
+                    </div>
+                </form>
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

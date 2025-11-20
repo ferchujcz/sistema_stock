@@ -1,0 +1,29 @@
+{% extends 'core/base.html' %} {# Reutilizamos nuestra base para la barra de navegación #}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h2>Iniciar Sesión</h2>
+        <hr>
+        {% if form.errors %}
+            <div class="alert alert-danger">
+                Tu nombre de usuario y contraseña no coinciden. Por favor, inténtalo de nuevo.
+            </div>
+        {% endif %}
+
+        <form method="post" action="{% url 'login' %}">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="id_username" class="form-label">Nombre de usuario</label>
+                <input type="text" name="username" autofocus autocapitalize="none" autocomplete="username" maxlength="150" required id="id_username" class="form-control">
+            </div>
+            <div class="mb-3">
+                <label for="id_password" class="form-label">Contraseña</label>
+                <input type="password" name="password" autocomplete="current-password" required id="id_password" class="form-control">
+            </div>
+            <button type="submit" class="btn btn-primary">Iniciar Sesión</button>
+            <input type="hidden" name="next" value="{{ next }}"> {# Importante para redirigir después del login #}
+        </form>
+    </div>
+</div>
+{% endblock %}

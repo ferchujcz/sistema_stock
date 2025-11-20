@@ -1,0 +1,46 @@
+{% extends 'core/base.html' %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Cierre de Turno - {{ sucursal_actual.nombre|default:"Mi Sucursal" }}</h4>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Resumen de movimientos desde el último cierre ({{ fecha_inicio_turno }})</p>
+
+                <h5 class="text-success">Ingresos en Efectivo</h5>
+                <ul class="list-group mb-3">
+                    <li class="list-group-item d-flex justify-content-between">Ventas en Efectivo: <span>${{ total_efectivo|floatformat:2 }}</span></li>
+                    <li class="list-group-item d-flex justify-content-between">Cobros Cta. Cte.: <span>${{ total_cobros_fiado|floatformat:2 }}</span></li>
+                </ul>
+
+                <h5 class="text-danger">Salidas en Efectivo</h5>
+                <ul class="list-group mb-3">
+                    <li class="list-group-item d-flex justify-content-between">Pagos a Proveedores: <span>-${{ total_pagos_proveedor|floatformat:2 }}</span></li>
+                </ul>
+
+                <h5 class="text-info">Otros Movimientos (No afectan caja)</h5>
+                <ul class="list-group mb-3">
+                    <li class="list-group-item d-flex justify-content-between">Ventas (Tarjeta/QR): <span>${{ total_tarjeta|add:total_qr|floatformat:2 }}</span></li>
+                </ul>
+
+                <hr>
+                <h4>Total en Caja (Calculado): <span class="text-primary">${{ caja_calculada|floatformat:2 }}</span></h4>
+                <hr>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="monto_en_caja_declarado" class="form-label fs-5">¿Cuánto dinero contaste en la caja?</label>
+                        <input type="number" step="0.01" name="monto_en_caja_declarado" id="monto_en_caja_declarado" class="form-control form-control-lg" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-danger btn-lg">Confirmar y Cerrar Turno</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

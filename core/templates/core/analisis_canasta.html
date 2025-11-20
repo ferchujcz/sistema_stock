@@ -1,0 +1,35 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<h1>Análisis de Canasta de Mercado</h1>
+<p class="lead">Reglas de asociación encontradas (productos que se compran juntos con frecuencia).</p>
+
+<div class="alert alert-info">
+    <strong>Interpretación:</strong> "Si compran <strong>{{ regla.base }}</strong>, entonces también compran <strong>{{ regla.add }}</strong>" ocurre en el <strong>{{ regla.soporte }}%</strong> de todas las ventas, y tiene una confianza del <strong>{{ regla.confianza }}%</strong> (de las veces que compran A, también llevan B).
+</div>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Si Compran...</th>
+            <th>También Compran...</th>
+            <th>Confianza (%)</th>
+            <th>Soporte (%)</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for regla in reglas %}
+        <tr>
+            <td>{{ regla.base }}</td>
+            <td><strong>{{ regla.add }}</strong></td>
+            <td>{{ regla.confianza }}</td>
+            <td>{{ regla.soporte }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="4" class="text-center">No se encontraron reglas de asociación significativas con los datos actuales. Se necesitan más ventas (con al menos 2 productos) para el análisis.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endblock %}

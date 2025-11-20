@@ -1,0 +1,97 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<h1>Reponer Stock en Góndola</h1>
+<p class="lead">Buscá el producto que vas a mover, ingresá la cantidad y confirmá.</p>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        
+        <form method="post">
+            {% csrf_token %}
+            
+            <div class="table-responsive">
+                <table id="tablaReponer" class="table table-striped table-hover" style="width:100%">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Vencimiento</th>
+                            <th>Cant. en Depósito</th>
+                            <th style="width: 150px;">Cantidad a Mover</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in stock_en_deposito %}
+                        <tr>
+                            <td>{{ item.producto.nombre }}</td>
+                            <td data-order="{{ item.fecha_vencimiento|date:'Ymd'|default:'99999999' }}">
+                                {{ item.fecha_vencimiento|date:"d/m/Y"|default:"No perecedero" }}
+                            </td>
+                            <td>{{ item.cantidad }}</td>
+                            <td>
+                                <input type="number" 
+                                       name="cantidad_a_mover_{{ item.id }}" 
+                                       class="form-control form-control-sm" 
+                                       min="0" 
+                                       max="{{ item.cantidad }}"
+                                       placeholder="0">
+                            </td>
+                        </tr>
+                        {% empty %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <hr>
+            <div class="text-end">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="bi bi-check-circle"></i> Confirmar Reposición
+                </button>
+            </div>
+        </form>
+        
+    </div>
+</div>
+{% endblock %}
+
+{% block javascript %}
+<script>
+    $(document).ready(function() {
+        new DataTable('#tablaReponer', {
+            responsive: true,
+            // TRADUCCIÓN DIRECTA (MÁS SEGURO)
+            language: {
+                "decimal": "",
+                "emptyTable": "No hay stock en depósito disponible para reponer",
+                "info": "Mostrando _START_ a _END_ de _TOTAL_ productos",
+                "infoEmpty": "Mostrando 0 a 0 de 0 productos",
+                "infoFiltered": "(filtrado de _MAX_ productos totales)",
+                "infoPostFix": "",
+                "thousands": ",",
+                "lengthMenu": "Mostrar _MENU_ productos",
+                "loadingRecords": "Cargando...",
+                "processing": "Procesando...",
+                "search": "Buscar:",
+                "zeroRecords": "No se encontraron productos coincidentes",
+                "paginate": {
+                    "first": "Primero",
+                    "last": "Último",
+                    "next": "Siguiente",
+                    "previous": "Anterior"
+                },
+                "aria": {
+                    "sortAscending": ": activar para ordenar la columna ascendente",
+                    "sortDescending": ": activar para ordenar la columna descendente"
+                }
+            },
+            // Ordenar por fecha de vencimiento (columna 1) ascendente (lo que vence antes primero)
+            order: [[ 1, 'asc' ]],
+            // Desactivar ordenamiento en la columna de input (columna 3)
+            columnDefs: [
+                { "orderable": false, "targets": 3 }
+            ]
+        });
+    });
+</script>
+{% endblock %}

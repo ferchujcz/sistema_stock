@@ -1,0 +1,61 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Registrar Factura de Proveedor (Compra)</h4>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{% url 'registrar_factura_proveedor' %}">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label for="proveedor" class="form-label">Proveedor</label>
+                        <select name="proveedor" id="proveedor" class="form-select" required>
+                            <option value="">--- Seleccionar Proveedor ---</option>
+                            {% for p in proveedores %}
+                            <option value="{{ p.id }}">{{ p.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="sucursal" class="form-label">Sucursal que recibe</label>
+                        <select name="sucursal" id="sucursal" class="form-select" required>
+                            <option value="">--- Seleccionar Sucursal ---</option>
+                            {% for s in sucursales %}
+                            <option value="{{ s.id }}">{{ s.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="numero_factura" class="form-label">Número de Factura/Remito</label>
+                        <input type="text" name="numero_factura" id="numero_factura" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label for="monto_total" class="form-label">Monto Total ($)</label>
+                        <input type="number" step="0.01" name="monto_total" id="monto_total" class="form-control" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="fecha_factura" class="form-label">Fecha de Factura</gabel>
+                            <input type="date" name="fecha_factura" id="fecha_factura" class="form-control">
+                        </div>
+                         <div class="col-md-6 mb-3">
+                            <label for="fecha_vencimiento" class="form-label">Fecha de Vencimiento</label>
+                            <input type="date" name="fecha_vencimiento" id="fecha_vencimiento" class="form-control">
+                        </div>
+                    </div>
+
+                    <hr>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'listar_proveedores' %}" class="btn btn-secondary btn-lg">Cancelar</a>
+                        <button type="submit" class="btn btn-primary btn-lg">Registrar Deuda</for>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

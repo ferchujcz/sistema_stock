@@ -1,0 +1,53 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Editar Lote de Stock</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Producto</label>
+                        <input type="text" class="form-control" value="{{ stock_item.producto.nombre }}" disabled>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="cantidad" class="form-label">Cantidad</label>
+                            <input type="number" name="cantidad" id="cantidad" class="form-control" value="{{ stock_item.cantidad }}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="fecha_vencimiento" class="form-label">Fecha de Vencimiento</label>
+                            <input type="date" name="fecha_vencimiento" id="fecha_vencimiento" class="form-control" value="{{ stock_item.fecha_vencimiento|date:'Y-m-d' }}">
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="ubicacion" class="form-label">Ubicación</label>
+                        <select name="ubicacion" id="ubicacion" class="form-select">
+                            <option value="deposito" {% if stock_item.ubicacion == 'deposito' %}selected{% endif %}>Depósito</option>
+                            <option value="gondola" {% if stock_item.ubicacion == 'gondola' %}selected{% endif %}>Góndola</option>
+                        </select>
+                    </div>
+                    
+                    <hr>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'detalle_producto_lotes' stock_item.producto.id %}" class="btn btn-secondary btn-lg">
+                            <i class="bi bi-x-circle"></i> Cancelar
+                        </a>
+                        <button type-="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-save"></i> Guardar Cambios
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

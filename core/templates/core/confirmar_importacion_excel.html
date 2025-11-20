@@ -1,0 +1,124 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<h1>Revisar Importación de Excel</h1>
+<p class="lead">Hemos analizado tu archivo. Revisa los items que requieren tu atención y luego confirmá la importación.</p>
+
+<form action="{% url 'procesar_importacion_excel' %}" method="post">
+    {% csrf_token %}
+    
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">
+                <i class="bi bi-check-circle-fill"></i> {{ filas_confirmadas|length }} Items Listos para Cargar (Stock)
+            </h5>
+            <small>El producto ya existe (por código de barras). Solo se cargará el stock.</small>
+        </div>
+        <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+            <ul class="list-group list-group-flush">
+                {% for fila in filas_confirmadas %}
+                <li class="list-group-item">
+                    <strong>{{ fila.producto_nombre }}</strong> | Cantidad: {{ fila.cantidad }}
+                    <input type="hidden" name="item_{{ fila.index }}_tipo" value="stock">
+                    <input type="hidden" name="item_{{ fila.index }}_producto_id" value="{{ fila.producto_id }}">
+                    <input type="hidden" name="item_{{ fila.index }}_cantidad" value="{{ fila.cantidad }}">
+                    <input type="hidden" name="item_{{ fila.index }}_fecha_vencimiento" value="{{ fila.fecha_vencimiento|default:'' }}">
+                    <input type="hidden" name="item_{{ fila.index }}_ubicacion" value="{{ fila.ubicacion|default:'deposito' }}">
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0">
+                <i class="bi bi-exclamation-triangle-fill"></i> {{ filas_para_revisar|length }} Productos Nuevos o Dudosos (Revisar)
+            </h5>
+            <small>Estos productos no existen por código de barras. Por favor, confirmá la creación y asigná proveedor/categoría.</small>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th>Nombre (del Excel)</th>
+                        <th>Proveedor (Sugerido)</th>
+                        <th>Categoría (Requerido)</th>
+                        <th>Costo</th>
+                        <th>Precio Venta</th>
+                        <th>Cantidad</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for fila in filas_para_revisar %}
+                    <tr>
+                        <input type="hidden" name="item_{{ fila.index }}_tipo" value="nuevo_producto">
+                        <input type="hidden" name="item_{{ fila.index }}_nombre" value="{{ fila.nombre }}">
+                        <input type="hidden" name="item_{{ fila.index }}_codigo_barras" value="{{ fila.codigo_barras }}">
+                        <input type="hidden" name="item_{{ fila.index }}_fecha_vencimiento" value="{{ fila.fecha_vencimiento|default:'' }}">
+                        <input type="hidden" name="item_{{ fila.index }}_ubicacion" value="{{ fila.ubicacion|default:'deposito' }}">
+
+                        <td><strong>{{ fila.nombre }}</strong><br><small class="text-muted">{{ fila.codigo_barras }}</small></td>
+                        <td>
+                            <select name="item_{{ fila.index }}_proveedor_id" class="form-select form-select-sm">
+                                <option value="">--- Seleccionar ---</option>
+                                <option value="CREAR_NUEVO_{{ fila.proveedor_nombre }}" class="fw-bold">Crear Proveedor: "{{ fila.proveedor_nombre }}"</option>
+                                <option disabled>--- Existentes ---</option>
+                                {% for p in todos_los_proveedores %}
+                                <option value="{{ p.id }}" 
+                                    {% if fila.proveedor_sugerido and fila.proveedor_sugerido.id == p.id %}
+                                    selected title="Sugerido ({{ fila.proveedor_sugerido.similaridad }}% similar)"
+                                    {% endif %}>
+                                    {{ p.nombre }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <select name="item_{{ fila.index }}_categoria_id" class="form-select form-select-sm" required>
+                                <option value="">--- Seleccionar ---</option>
+                                {% for c in todas_las_categorias %}
+                                <option value="{{ c.id }}">{{ c.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td><input type="number" step="0.01" name="item_{{ fila.index }}_costo" value="{{ fila.costo|default:'0' }}" class="form-control form-control-sm"></td>
+                        <td><input type="number" step="0.01" name="item_{{ fila.index }}_precio_venta" value="{{ fila.precio_venta|default:'0' }}" class="form-control form-control-sm"></td>
+                        <td><input type="number" name="item_{{ fila.index }}_cantidad" value="{{ fila.cantidad }}" class="form-control form-control-sm"></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% if filas_con_problemas %}
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-danger text-white">
+            <h5 class="mb-0">
+                <i class="bi bi-x-circle-fill"></i> {{ filas_con_problemas|length }} Filas Omitidas por Errores
+            </h5>
+            <small>Estas filas tenían datos incompletos (faltaba código, nombre o cantidad) y no se procesarán.</small>
+        </div>
+        <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+             <ul class="list-group list-group-flush">
+                {% for fila in filas_con_problemas %}
+                <li class="list-group-item">
+                    Fila (Excel): <strong>{{ fila.nombre|default:'Sin Nombre' }}</strong> | Error: {{ fila.error }}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="text-end">
+        <a href="{% url 'importar_stock' %}" class="btn btn-secondary btn-lg">Cancelar</a>
+        <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-check-all"></i> Confirmar y Procesar Importación
+        </button>
+    </div>
+
+</form>
+{% endblock %}

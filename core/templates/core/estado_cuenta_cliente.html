@@ -1,0 +1,93 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<h1 class="mb-0">Cuenta Corriente de:</h1>
+<h2 class="text-primary mb-3">{{ cliente.nombre_completo }}</h2>
+
+<div class="row">
+    <div class="col-lg-4 mb-3">
+        <div class="card shadow-sm sticky-top" style="top: 20px;">
+            <div class="card-body">
+                <h5 class="card-title">Saldo Actual</h5>
+                {% if cliente.saldo_actual > 0 %}
+                    <h2 class="card-text text-danger">${{ cliente.saldo_actual|floatformat:2 }}</h2>
+                    <p class="text-muted">(Debe)</p>
+                {% elif cliente.saldo_actual < 0 %}
+                     <h2 class="card-text text-success">${{ cliente.saldo_actual|floatformat:2|slice:"1:" }}</h2>
+                     <p class="text-muted">(A favor)</p>
+                {% else %}
+                    <h2 class="card-text text-success">${{ cliente.saldo_actual|floatformat:2 }}</h2>
+                    <p class="text-muted">(Al día)</p>
+                {% endif %}
+                <p class="small text-muted mb-0">Límite de Crédito: ${{ cliente.limite_credito|floatformat:2 }}</p>
+            </div>
+            <hr class="my-0">
+            <div class="card-body">
+                <h5 class="card-title">Registrar un Pago</h5>
+                <form action="{% url 'registrar_pago_cliente' %}" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="cliente_id" value="{{ cliente.id }}">
+                    <div class="mb-3">
+                        <label for="monto" class="form-label">Monto a Pagar ($)</label>
+                        <input type="number" step="0.01" name="monto" id="monto" class="form-control" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success">Registrar Pago</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card shadow-sm mb-3">
+            <div class="card-header">
+                <i class="bi bi-cart-x-fill"></i> Ventas Fiadas (Deuda)
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped table-sm mb-0">
+                    <thead>
+                        <tr><th>Fecha</th><th>Sucursal</th><th>Total</th><th>Acción</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for venta in ventas_fiadas %}
+                        <tr>
+                            <td>{{ venta.fecha_hora|date:"d/m/Y H:i" }}</td>
+                            <td>{{ venta.sucursal.nombre }}</td>
+                            <td>${{ venta.total|floatformat:2 }}</td>
+                            <td><a href="{% url 'detalle_venta' venta.id %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a></td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="4" class="text-center text-muted">Sin deudas registradas.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <i class="bi bi-wallet-fill"></i> Pagos Realizados (Abonos)
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped table-sm mb-0">
+                    <thead>
+                        <tr><th>Fecha</th><th>Sucursal</th><th>Monto</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for pago in pagos_realizados %}
+                        <tr>
+                            <td>{{ pago.fecha|date:"d/m/Y H:i" }}</td>
+                            <td>{{ pago.sucursal.nombre }}</td>
+                            <td>${{ pago.monto|floatformat:2 }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-center text-muted">Sin pagos registrados.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

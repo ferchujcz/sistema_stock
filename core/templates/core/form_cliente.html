@@ -1,0 +1,48 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">{% if cliente %}Editar Cliente{% else %}Añadir Nuevo Cliente{% endif %}</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label for="nombre_completo" class="form-label">Nombre Completo</label>
+                        <input type="text" name="nombre_completo" id="nombre_completo" class="form-control" value="{{ cliente.nombre_completo|default:'' }}" required>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="dni" class="form-label">DNI</label>
+                            <input type="text" name="dni" id="dni" class="form-control" value="{{ cliente.dni|default:'' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="telefono" class="form-label">Teléfono</label>
+                            <input type="text" name="telefono" id="telefono" class="form-control" value="{{ cliente.telefono|default:'' }}">
+                        </div>
+                    </div>
+
+                    {% if user.is_superuser %}
+                    <div class="mb-3">
+                        <label for="limite_credito" class="form-label">Límite de Crédito ($)</label>
+                        <input type="number" step="0.01" name="limite_credito" id="limite_credito" class="form-control" value="{{ cliente.limite_credito|default:'0' }}">
+                        <div class="form-text">Solo el administrador puede fijar el límite de crédito.</div>
+                    </div>
+                    {% endif %}
+
+                    <hr>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'listar_clientes' %}" class="btn btn-secondary btn-lg">Cancelar</a>
+                        <button type="submit" class="btn btn-primary btn-lg">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

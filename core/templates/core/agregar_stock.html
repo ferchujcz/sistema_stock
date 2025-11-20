@@ -1,0 +1,130 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Añadir Nuevo Stock</h4>
+            </div>
+            <div class="card-body">
+                <form method="post" id="form-agregar-stock">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label for="buscar-producto" class="form-label">Escanear Código o Buscar Producto</label>
+                        <input type="text" id="buscar-producto" class="form-control form-control-lg" placeholder="Escanea o escribe..." autofocus>
+                        <div id="resultados-busqueda" class="list-group position-absolute" style="z-index: 1000; width: 95%;"></div>
+                        <input type="hidden" name="producto" id="producto_id" required>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="cantidad" class="form-label">Cantidad</label>
+                            <input type="number" name="cantidad" id="cantidad" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="fecha_vencimiento" class="form-label">Fecha de Vencimiento</label>
+                            <input type="date" name="fecha_vencimiento" id="fecha_vencimiento" class="form-control">
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="ubicacion" class="form-label">Ubicación</label>
+                        <select name="ubicacion" id="ubicacion" class="form-select">
+                            <option value="deposito" selected>Depósito</option>
+                            <option value="gondola">Góndola</option>
+                        </select>
+                    </div>
+
+                    <hr>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'stock_detalle' %}" class="btn btn-secondary btn-lg">Cancelar</a>
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-plus-circle"></i> Guardar y Añadir Siguiente
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascript %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const buscarInput = document.getElementById('buscar-producto');
+    const resultadosDiv = document.getElementById('resultados-busqueda');
+    const productoIdInput = document.getElementById('producto_id');
+    const cantidadInput = document.getElementById('cantidad');
+    const form = document.getElementById('form-agregar-stock');
+
+    let productoSeleccionado = null;
+
+    // Función para seleccionar un producto
+    function seleccionarProducto(producto) {
+        productoSeleccionado = producto;
+        buscarInput.value = producto.nombre; // Pone el nombre en el input
+        productoIdInput.value = producto.id; // Guarda el ID en el campo oculto
+        resultadosDiv.innerHTML = ''; // Limpia los resultados
+        cantidadInput.focus(); // Mueve el foco a la cantidad
+        cantidadInput.select();
+    }
+
+    // Lógica de búsqueda y escáner
+    buscarInput.addEventListener('keyup', function(event) {
+        if (event.key === 'Enter') { // Lector de código de barras
+            event.preventDefault();
+            const codigo = buscarInput.value.trim();
+            if (codigo) {
+                fetch(`/api/buscar-por-codigo/?codigo=${codigo}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            buscarInput.classList.add('is-invalid');
+                            throw new Error('Producto no encontrado');
+                        }
+                        buscarInput.classList.remove('is-invalid');
+                        return response.json();
+                    })
+                    .then(producto => seleccionarProducto(producto))
+                    .catch(error => {
+                        alert(error.message);
+                        buscarInput.value = '';
+                    });
+            }
+        } else { // Búsqueda por nombre
+            const query = buscarInput.value;
+            productoIdInput.value = ''; // Invalidar producto si se escribe
+            if (query.length < 2) {
+                resultadosDiv.innerHTML = '';
+                return;
+            }
+            fetch(`/api/buscar-productos/?term=${query}`)
+                .then(response => response.json())
+                .then(data => {
+                    resultadosDiv.innerHTML = '';
+                    data.forEach(producto => {
+                        const div = document.createElement('div');
+                        div.innerHTML = producto.nombre;
+                        div.classList.add('list-group-item', 'list-group-item-action');
+                        div.style.cursor = 'pointer';
+                        div.onclick = () => seleccionarProducto(producto);
+                        resultadosDiv.appendChild(div);
+                    });
+                });
+        }
+    });
+
+    // Validar antes de enviar
+    form.addEventListener('submit', function(event) {
+        if (!productoIdInput.value) {
+            event.preventDefault(); // Detener el envío del formulario
+            alert('Por favor, selecciona un producto válido de la lista o escanéalo.');
+            buscarInput.focus();
+        }
+    });
+
+});
+</script>
+{% endblock %}

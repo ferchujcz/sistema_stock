@@ -1,0 +1,204 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+
+{% if sucursal_actual %}
+    <h1 class="mb-3">Dashboard <span class="text-muted fs-4">- {{ sucursal_actual.nombre }}</span></h1>
+{% else %}
+    <h1 class="mb-3">Dashboard</h1>
+{% endif %}
+
+
+{% if es_superadmin %}
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-dark text-white">
+        <i class="bi bi-globe"></i> Vista de Administrador: Resumen Global del Día
+    </div>
+    <div class="card-body">
+        <h4 class="card-title">Ventas Totales Hoy (Todas las Sucursales): ${{ total_vendido_global|default:"0.00"|floatformat:2 }}</h4>
+        <ul class="list-group list-group-flush">
+            {% for venta_sucursal in ventas_por_sucursal %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    {{ venta_sucursal.sucursal__nombre|default:"Sin Sucursal" }}
+                    <span class="badge bg-primary rounded-pill fs-6">${{ venta_sucursal.total_vendido|floatformat:2 }}</span>
+                </li>
+            {% empty %}
+                <li class="list-group-item text-muted">No hay ventas hoy.</li>
+            {% endfor %}
+        </ul>
+        <h5 class="mt-4">Ver Stock Detallado por Sucursal:</h5>
+        {% for sucursal in todas_las_sucursales %}
+            <a href="{% url 'admin_stock_por_sucursal' sucursal.id %}" class="btn btn-outline-secondary btn-sm me-2">
+                {{ sucursal.nombre }}
+            </a>
+        {% empty %}
+            <p class="text-muted">No hay sucursales creadas.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+
+<div class="row">
+
+    <div class="col-lg-8">
+        
+        <div class="row mb-3">
+            <div class="col-md-6 mb-3">
+                <div class="card text-white bg-success shadow-sm h-100">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-cash-coin"></i> Ventas del Día (Sucursal)</h5>
+                        <h3 class="card-text">${{ total_vendido_hoy|default:"0.00"|floatformat:2 }}</h3>
+                        <p class="card-text mb-0">{{ numero_ventas_hoy|default:"0" }} transacciones</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6 mb-3">
+                <div class="card text-white bg-info shadow-sm h-100">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-graph-up"></i> Predicción (Próx. 7 Días)</h5>
+                        <h3 class="card-text">{{ prediccion_7_dias|floatformat:0 }} unidades</h3>
+                        <p class="card-text mb-0">Venta total estimada para esta sucursal</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <i class="bi bi-lightning-fill"></i> Acciones Rápidas
+            </div>
+            <div class="card-body text-center d-flex flex-wrap justify-content-center gap-2">
+                <a href="{% url 'registrar_venta' %}" class="btn btn-primary btn-lg">
+                    <i class="bi bi-cart-plus"></i> Nueva Venta
+                </a>
+                <a href="{% url 'reponer_gondola' %}" class="btn btn-info btn-lg">
+                    <i class="bi bi-box-arrow-in-down"></i> Reponer Góndola
+                </a>
+                <a href="{% url 'agregar_stock' %}" class="btn btn-secondary btn-lg">
+                    <i class="bi bi-plus-circle"></i> Añadir Stock
+                </a>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4">
+             <div class="card-header">
+                Ventas Últimos 7 Días
+            </div>
+            <div class="card-body">
+                {% if total_ventas_semana == 0 %}
+                    <p class="text-center text-muted m-5">Aún no hay datos de ventas en los últimos 7 días.</p>
+                {% else %}
+                    <canvas id="ventasSemanalesChart" style="min-height: 250px; max-height:300px;"></canvas>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+
+    <div class="col-lg-4">
+        
+        {% if alertas_sin_fecha %}
+        <div class="card border-danger shadow-sm mb-3">
+            <div class="card-header bg-danger text-white">
+                <h5 class="card-title mb-0"><i class="bi bi-exclamation-diamond-fill"></i> ¡Acción Requerida!</h5>
+            </div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item">
+                    <p class="card-text small mb-0">Stock perecedero sin fecha de vencimiento. Asignales una fecha para evitar pérdidas.</p>
+                </li>
+                {% for producto in alertas_sin_fecha %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span>{{ producto.nombre }}</span>
+                        <a href="{% url 'detalle_producto_lotes' producto.id %}" class="btn btn-sm btn-outline-danger" title="Corregir Lotes">
+                            Corregir
+                        </a>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <div class="card border-danger shadow-sm mb-3">
+            <div class="card-header bg-danger text-white">
+                <i class="bi bi-box-seam"></i> Alertas de Stock Bajo
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for producto in alertas_stock_bajo %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ producto.nombre }}
+                        <span class="badge bg-danger rounded-pill">Quedan {{ producto.stock_total_sucursal }}</span>
+                    </li>
+                {% empty %}
+                    <li class="list-group-item text-muted">No hay alertas de stock bajo.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="card border-warning shadow-sm mb-3">
+            <div class="card-header bg-warning text-dark">
+                <i class="bi bi-calendar-x"></i> Próximos Vencimientos
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for item in alertas_vencimiento %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            {{ item.producto.nombre }}
+                            <small class="d-block text-muted">{{ item.cantidad }} unidades</small>
+                        </div>
+                        <span class="badge bg-warning text-dark">Vence: {{ item.fecha_vencimiento|date:"d/m" }}</span>
+                    </li>
+                {% empty %}
+                    <li class="list-group-item text-muted">No hay vencimientos próximos.</li>
+                {% endfor %}
+            </ul>
+        </div>
+
+    </div>
+</div>
+
+{% endblock %}
+
+{% block javascript %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    try {
+        // --- ¡ERROR CORREGIDO AQUÍ! ---
+        // La sintaxis correcta es con '|' (pipe), no con coma.
+        const totalVentas = parseFloat("{{ total_ventas_semana|default:0 }}");
+        // --- FIN DE LA CORRECCIÓN ---
+
+        // Ahora, el 'if' de JavaScript usa la variable de JavaScript
+        if (totalVentas > 0) {
+            const ctx = document.getElementById('ventasSemanalesChart');
+            const ventasLabels = JSON.parse('{{ ventas_labels|safe|default:"[]" }}');
+            const ventasData = JSON.parse('{{ ventas_data|safe|default:"[]" }}');
+    
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                labels: ventasLabels,
+                datasets: [{
+                    label: 'Total Vendido ($)',
+                    data: ventasData,
+                    backgroundColor: 'rgba(0, 123, 255, 0.6)',
+                    borderColor: 'rgba(0, 123, 255, 1)',
+                    borderWidth: 1
+                }]
+                },
+                options: {
+                scales: {
+                    y: {
+                    beginAtZero: true
+                    }
+                },
+                responsive: true,
+                maintainAspectRatio: false
+                }
+            });
+        }
+    } catch (e) {
+        console.error("Error al cargar el gráfico:", e);
+    }
+</script>
+{% endblock %}

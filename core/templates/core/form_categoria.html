@@ -1,0 +1,39 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6"> <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">{% if categoria %}Editar Categoría{% else %}Añadir Nueva Categoría{% endif %}</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="nombre" class="form-label">Nombre de la Categoría</label>
+                        <input type="text" name="nombre" id="nombre" class="form-control" value="{{ categoria.nombre|default:'' }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="margen_ganancia_porcentaje" class="form-label">Margen de Ganancia Sugerido (%)</label>
+                        <input type="number" step="0.01" name="margen_ganancia_porcentaje" id="margen_ganancia_porcentaje" class="form-control" value="{{ categoria.margen_ganancia_porcentaje|default:'0' }}">
+                        <div class="form-text">Ejemplo: Escribe 30.5 para un 30.5% de margen.</div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'listar_categorias' %}" class="btn btn-secondary btn-lg">
+                            <i class="bi bi-x-circle"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-save"></i> Guardar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

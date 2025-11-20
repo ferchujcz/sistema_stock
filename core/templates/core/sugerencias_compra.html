@@ -1,0 +1,41 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<h1>Sugerencias de Compra {% if sucursal_actual %} - Sucursal: {{ sucursal_actual.nombre }}{% endif %}</h1>
+<p class="lead">Productos cuyo stock total está por debajo del mínimo configurado.</p>
+
+{% if sugerencias %}
+    {% for proveedor, productos in sugerencias.items %}
+    <div class="card mb-3">
+        <div class="card-header">
+            <strong>Proveedor: {{ proveedor }}</strong>
+        </div>
+        <table class="table table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Stock Actual</th>
+                    <th>Stock Mínimo</th>
+                    <th>Cantidad Sugerida a Pedir</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for prod in productos %}
+                <tr>
+                    <td>{{ prod.nombre }}</td>
+                    <td>{{ prod.stock_actual }}</td>
+                    <td>{{ prod.stock_minimo }}</td>
+                    <td><strong>{{ prod.cantidad_sugerida }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+{% else %}
+    <div class="alert alert-success text-center">
+        ¡Todo en orden! No hay productos por debajo del stock mínimo en esta sucursal.
+    </div>
+{% endif %}
+
+{% endblock %}

@@ -1,0 +1,76 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<h1 class="mb-0">Proveedor:</h1>
+<h2 class="text-primary mb-3">{{ proveedor.nombre }}</h2>
+
+<div class="row">
+    <div class="col-lg-7">
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="info-tab" data-bs-toggle="tab" data-bs-target="#info-pane" type="button">Información</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="productos-tab" data-bs-toggle="tab" data-bs-target="#productos-pane" type="button">Productos Asociados</button>
+            </li>
+        </ul>
+        <div class="tab-content card shadow-sm border-top-0 rounded-0">
+            <div class="tab-pane fade show active p-3" id="info-pane">
+                <p><strong>Teléfono:</strong> {{ proveedor.telefono|default:"-" }}</p>
+                <p><strong>Email:</strong> {{ proveedor.email|default:"-" }}</p>
+                <p><strong>Día de Reparto:</strong> {{ proveedor.get_dia_semana_reparto_display|default:"-" }}</p>
+                <p><strong>Frecuencia:</strong> {{ proveedor.get_frecuencia_reparto_display|default:"-" }}</p>
+                <a href="{% url 'editar_proveedor' proveedor.id %}" class="btn btn-sm btn-primary">Editar Información</a>
+            </div>
+            <div class="tab-pane fade p-3" id="productos-pane">
+                <ul class="list-group">
+                    {% for producto in productos_del_proveedor %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ producto.nombre }}
+                        <a href="{% url 'editar_producto' producto.id %}" class="btn btn-sm btn-outline-secondary">Ver</a>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item text-muted">Este proveedor no tiene productos asociados.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card shadow-sm sticky-top" style="top: 20px;">
+            <div class="card-body">
+                <h5 class="card-title">Cuenta Corriente</h5>
+                <p class="mb-0">Saldo Actual (Deuda):</p>
+                <h2 class="card-text text-danger">${{ proveedor.saldo_actual|floatformat:2 }}</h2>
+            </div>
+            <hr class="my-0">
+            <div class="card-body">
+                <h5 class="card-title">Registrar Pago a Proveedor</h5>
+                <form action="{% url 'registrar_pago_proveedor' %}" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="proveedor_id" value="{{ proveedor.id }}">
+                    <div class="mb-3">
+                        <label for="monto" class="form-label">Monto Abonado ($)</label>
+                        <input type="number" step="0.01" name="monto" id="monto" class="form-control" required>
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success">Registrar Pago</button>
+                    </div>
+                </form>
+            </div>
+            <hr class="my-0">
+            <div class="card-body">
+                <h5>Facturas Pendientes de Pago</h5>
+                <ul class="list-group list-group-flush">
+                    {% for factura in facturas_pendientes %}
+                    <li class="list-group-item">{{ factura.numero_factura|default:"S/N" }} - ${{ factura.monto_total }}</li>
+                    {% empty %}
+                    <li class="list-group-item text-muted">No hay facturas pendientes.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

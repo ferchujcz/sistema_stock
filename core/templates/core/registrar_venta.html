@@ -1,0 +1,422 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+
+<style>
+    #carrito-body input[type=number]::-webkit-outer-spin-button,
+    #carrito-body input[type=number]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+    #carrito-body input[type=number] {
+        -moz-appearance: textfield;
+    }
+</style>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-lg-7">
+            
+            <div class="mb-3">
+                <label for="buscar-producto" class="form-label">Buscar por Nombre o Escanear Código</label>
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" id="buscar-producto" class="form-control form-control-lg" placeholder="Escribe para buscar o escanea un producto..." autofocus>
+                </div>
+                <div id="resultados-busqueda" class="list-group position-absolute" style="z-index: 1000; width: 95%;"></div>
+            </div>
+
+            <h3 class="mt-4">Carrito</h3>
+            <div class="card shadow-sm" style="min-height: 200px;">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th style="width: 150px;">Cantidad</th>
+                                <th>Precio Unit.</th>
+                                <th>Subtotal</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="carrito-body">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <h3 class="mt-4">Venta Rápida (Favoritos)</h3>
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <button type="button" class="btn btn-warning mb-2" data-bs-toggle="modal" data-bs-target="#modalDevolverEnvase">
+                        <i class="bi bi-recycle"></i> Devolver Envase
+                    </button>
+
+                    <div id="grilla-favoritos" class="d-flex flex-wrap gap-2">
+                        {% for p in productos_favoritos %}
+                        <button class="btn btn-favorito btn-outline-secondary p-3"
+                                data-id="{{ p.id }}"
+                                data-nombre="{{ p.nombre }}"
+                                data-precio="{{ p.precio_venta }}">
+                            {{ p.nombre }}
+                        </button>
+                        {% empty %}
+                        <p class="text-muted">No hay productos favoritos con stock en esta sucursal.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card shadow-sm sticky-top" style="top: 20px;">
+                <div class="card-body">
+                    <h5 class="card-title">Resumen de Venta</h5>
+                    <p class="card-text d-flex justify-content-between">Subtotal: <span id="subtotal-venta">$ 0.00</span></p>
+                    <p class="card-text d-flex justify-content-between">Ajuste: <span id="ajuste-venta">$ 0.00</span></p>
+                    <hr>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="card-title mb-0">Total:</h4>
+                        <h2 id="total-venta" class="mb-0 text-primary">$ 0.00</h2>
+                    </div>
+                    
+                    <label class="form-label mt-2">Método de Pago</label>
+                    <div class="btn-group w-100 mb-3" role="group">
+                        <input type="radio" class="btn-check" name="metodo_pago" id="pago_efectivo" value="efectivo" checked>
+                        <label class="btn btn-outline-success" for="pago_efectivo">Efectivo</label>
+                        
+                        <input type="radio" class="btn-check" name="metodo_pago" id="pago_debito" value="debito">
+                        <label class="btn btn-outline-primary" for="pago_debito">Débito</label>
+                        
+                        <input type="radio" class="btn-check" name="metodo_pago" id="pago_credito" value="credito">
+                        <label class="btn btn-outline-danger" for="pago_credito">Crédito</label>
+                        
+                        <input type="radio" class="btn-check" name="metodo_pago" id="pago_qr" value="qr">
+                        <label class="btn btn-outline-info" for="pago_qr">QR</label>
+                        
+                        <input type="radio" class="btn-check" name="metodo_pago" id="pago_fiado" value="cuenta_corriente">
+                        <label class="btn btn-outline-warning" for="pago_fiado">Cta. Cte.</label>
+                    </div>
+
+                    <div id="campo-efectivo" class="mb-3 p-3 bg-light border rounded">
+                        <label for="monto-abona" class="form-label fw-bold">Abona con ($):</label>
+                        <input type="number" id="monto-abona" class="form-control form-control-lg mb-2" placeholder="Ingrese monto...">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fs-5">Vuelto:</span>
+                            <span id="vuelto-display" class="fs-4 fw-bold text-success">$ 0.00</span>
+                        </div>
+                    </div>
+
+                    <div id="campo-cuotas" class="mb-3" style="display: none;">
+                        <label for="cuotas" class="form-label">Número de Cuotas</label>
+                        <input type="number" id="cuotas" class="form-control" value="1" min="1">
+                    </div>
+
+                    <div class="mb-3" id="campo-cliente" style="display: none;">
+                        <label for="buscar-cliente" class="form-label">Buscar Cliente (para Cta. Cte.)</label>
+                        <input type="text" id="buscar-cliente" class="form-control" placeholder="Buscar por Nombre o DNI...">
+                        <div id="resultados-cliente" class="list-group position-absolute" style="z-index: 999; width: 90%;"></div>
+                        <input type="hidden" id="cliente_id">
+                    </div>
+                    
+                    <button id="finalizar-venta" class="btn btn-success btn-lg w-100 mt-3">Finalizar Venta</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalDevolverEnvase" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalLabel">Devolución de Envases</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p>Seleccioná el envase que el cliente está devolviendo:</p>
+        <div class="list-group">
+            {% for envase in envases_retornables %}
+                <button type="button" class="list-group-item list-group-item-action"
+                        data-bs-dismiss="modal"
+                        onclick="agregarDevolucionAlCarrito('{{ envase.id }}', '{{ envase.nombre }}', '{{ envase.valor_deposito }}')">
+                    {{ envase.nombre }}
+                    <span class="badge bg-success float-end">${{ envase.valor_deposito|floatformat:0 }}</span>
+                </button>
+            {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+
+{% block javascript %}
+<script>
+const config = {
+    descuentoEfectivo: parseFloat('{{ config.descuento_efectivo_porcentaje|default:0 }}'.replace(',', '.')),
+    recargoCredito: parseFloat('{{ config.recargo_credito_porcentaje|default:0 }}'.replace(',', '.')),
+    recargoQR: parseFloat('{{ config.recargo_qr_porcentaje|default:0 }}'.replace(',', '.'))
+};
+
+document.addEventListener('DOMContentLoaded', function() {
+    // --- Referencias ---
+    const buscarInput = document.getElementById('buscar-producto');
+    const resultadosDiv = document.getElementById('resultados-busqueda');
+    const carritoBody = document.getElementById('carrito-body');
+    const finalizarVentaBtn = document.getElementById('finalizar-venta');
+    
+    const campoCuotas = document.getElementById('campo-cuotas');
+    const cuotasInput = document.getElementById('cuotas');
+    
+    const campoCliente = document.getElementById('campo-cliente');
+    const buscarClienteInput = document.getElementById('buscar-cliente');
+    const resultadosClienteDiv = document.getElementById('resultados-cliente');
+    const clienteIdInput = document.getElementById('cliente_id');
+    
+    const grillaFavoritos = document.getElementById('grilla-favoritos');
+    
+    // Referencias para Vuelto
+    const campoEfectivo = document.getElementById('campo-efectivo');
+    const montoAbonaInput = document.getElementById('monto-abona');
+    const vueltoDisplay = document.getElementById('vuelto-display');
+    
+    let carrito = [];
+    let clienteSeleccionado = null;
+    let totalCalculado = 0; // Guardamos el total globalmente para calcular vuelto
+
+    // --- BÚSQUEDA DE PRODUCTOS ---
+    buscarInput.addEventListener('keyup', function(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            const codigo = buscarInput.value.trim();
+            if (codigo) buscarPorCodigo(codigo);
+        } else {
+            buscarPorNombre(buscarInput.value);
+        }
+    });
+    function buscarPorCodigo(codigo) {
+        fetch(`/api/buscar-por-codigo/?codigo=${codigo}`)
+            .then(response => {
+                if (!response.ok) { buscarInput.classList.add('is-invalid'); throw new Error('Producto no encontrado'); }
+                buscarInput.classList.remove('is-invalid');
+                return response.json();
+            })
+            .then(producto => { agregarAlCarrito(producto); buscarInput.value = ''; })
+            .catch(error => alert(error.message));
+    }
+    function buscarPorNombre(query) {
+         if (query.length < 2) { resultadosDiv.innerHTML = ''; return; }
+        fetch(`/api/buscar-productos/?term=${query}`)
+            .then(response => response.json())
+            .then(data => {
+                resultadosDiv.innerHTML = '';
+                data.forEach(producto => {
+                    const div = document.createElement('div');
+                    div.innerHTML = producto.nombre;
+                    div.classList.add('list-group-item', 'list-group-item-action');
+                    div.style.cursor = 'pointer';
+                    div.onclick = () => agregarAlCarrito(producto);
+                    resultadosDiv.appendChild(div);
+                });
+            });
+    }
+
+    // --- BÚSQUEDA DE CLIENTES ---
+    buscarClienteInput.addEventListener('keyup', function(event) {
+        buscarPorNombreCliente(buscarClienteInput.value);
+    });
+    function buscarPorNombreCliente(query) {
+         if (query.length < 2) { resultadosClienteDiv.innerHTML = ''; return; }
+        fetch(`/api/buscar-clientes/?term=${query}`)
+            .then(response => response.json())
+            .then(data => {
+                resultadosClienteDiv.innerHTML = '';
+                data.forEach(cliente => {
+                    const div = document.createElement('div');
+                    div.innerHTML = `${cliente.nombre} (Deuda: $${cliente.saldo})`;
+                    div.classList.add('list-group-item', 'list-group-item-action');
+                    div.style.cursor = 'pointer';
+                    div.onclick = () => seleccionarCliente(cliente);
+                    resultadosClienteDiv.appendChild(div);
+                });
+            });
+    }
+    function seleccionarCliente(cliente) {
+        clienteSeleccionado = cliente;
+        buscarClienteInput.value = cliente.nombre;
+        clienteIdInput.value = cliente.id;
+        resultadosClienteDiv.innerHTML = '';
+    }
+
+    // --- FAVORITOS ---
+    if (grillaFavoritos) {
+        grillaFavoritos.addEventListener('click', function(event) {
+            const boton = event.target.closest('.btn-favorito');
+            if (boton) {
+                agregarAlCarrito({
+                    id: boton.dataset.id,
+                    nombre: boton.dataset.nombre,
+                    precio: parseFloat(boton.dataset.precio)
+                });
+            }
+        });
+    }
+
+    // --- CARRITO ---
+    function agregarAlCarrito(producto) {
+        const existente = carrito.find(item => item.id === producto.id && item.tipo === 'producto');
+        if (existente) { existente.cantidad++; } 
+        else { carrito.push({ ...producto, precio: parseFloat(producto.precio), cantidad: 1, tipo: 'producto' }); }
+        buscarInput.value = '';
+        resultadosDiv.innerHTML = '';
+        actualizarCarrito();
+    }
+
+    window.agregarDevolucionAlCarrito = function(id, nombre, valor) {
+        const id_envase = `envase_${id}`;
+        const existente = carrito.find(item => item.id === id_envase && item.tipo === 'devolucion');
+        if (existente) { existente.cantidad++; } 
+        else { carrito.push({ id: id_envase, nombre: `Devolución: ${nombre}`, precio: -parseFloat(valor), cantidad: 1, tipo: 'devolucion' }); }
+        actualizarCarrito();
+    }
+
+    window.modificarCantidad = function(index, cambio) {
+        if (carrito[index]) {
+            carrito[index].cantidad += cambio;
+            if (carrito[index].cantidad <= 0) { carrito.splice(index, 1); }
+            actualizarCarrito();
+        }
+    }
+    
+    window.cambiarCantidadManualmente = function(index, nuevaCantidad) {
+        const cantidad = parseInt(nuevaCantidad);
+        if (carrito[index]) {
+            if (isNaN(cantidad) || cantidad <= 0) { carrito.splice(index, 1); } 
+            else { carrito[index].cantidad = cantidad; }
+            actualizarCarrito();
+        }
+    }
+
+    function actualizarCarrito() {
+        carritoBody.innerHTML = '';
+        let subtotal = 0;
+
+        carrito.forEach((item, index) => {
+            const itemSubtotal = item.cantidad * item.precio;
+            subtotal += itemSubtotal;
+            const tr = document.createElement('tr');
+            if (item.tipo === 'devolucion') tr.classList.add('table-success');
+            
+            tr.innerHTML = `
+                <td>${item.nombre}</td>
+                <td>
+                    <div class="input-group input-group-sm" style="width: 120px;">
+                        <button class="btn btn-outline-secondary" onclick="modificarCantidad(${index}, -1)">-</button>
+                        <input type="number" class="form-control text-center" value="${item.cantidad}" onchange="cambiarCantidadManualmente(${index}, this.value)" min="1">
+                        <button class="btn btn-outline-secondary" onclick="modificarCantidad(${index}, 1)">+</button>
+                    </div>
+                </td>
+                <td>$${item.precio.toFixed(2)}</td>
+                <td>$${itemSubtotal.toFixed(2)}</td>
+                <td><button class="btn btn-danger btn-sm" onclick="modificarCantidad(${index}, -Infinity)"><i class="bi bi-trash"></i></button></td>
+            `;
+            carritoBody.appendChild(tr);
+        });
+
+        const metodoPago = document.querySelector('input[name="metodo_pago"]:checked').value;
+        let ajuste = 0;
+
+        if (metodoPago === 'efectivo' && config.descuentoEfectivo > 0) { ajuste = -(subtotal * (config.descuentoEfectivo / 100)); } 
+        else if (metodoPago === 'credito' && config.recargoCredito > 0) { ajuste = subtotal * (config.recargoCredito / 100); } 
+        else if (metodoPago === 'qr' && config.recargoQR > 0) { ajuste = subtotal * (config.recargoQR / 100); }
+
+        totalCalculado = subtotal + ajuste; // Actualizamos variable global
+
+        document.getElementById('subtotal-venta').innerText = `$ ${subtotal.toFixed(2)}`;
+        document.getElementById('ajuste-venta').innerText = `$ ${ajuste.toFixed(2)}`;
+        document.getElementById('total-venta').innerText = `$ ${totalCalculado.toFixed(2)}`;
+        
+        calcularVuelto(); // Recalcular vuelto si cambia el total
+    }
+
+    // --- CÁLCULO DE VUELTO (NUEVO) ---
+    function calcularVuelto() {
+        const montoAbonado = parseFloat(montoAbonaInput.value) || 0;
+        const vuelto = montoAbonado - totalCalculado;
+        
+        vueltoDisplay.innerText = `$ ${vuelto.toFixed(2)}`;
+        
+        if (vuelto < 0) {
+            vueltoDisplay.classList.remove('text-success');
+            vueltoDisplay.classList.add('text-danger');
+        } else {
+            vueltoDisplay.classList.remove('text-danger');
+            vueltoDisplay.classList.add('text-success');
+        }
+    }
+    
+    // Escuchar cambios en el input de pago
+    montoAbonaInput.addEventListener('input', calcularVuelto);
+
+
+    // --- LÓGICA DE PAGO Y UI ---
+    document.querySelectorAll('input[name="metodo_pago"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            const metodo = radio.value;
+            
+            // Mostrar/Ocultar secciones según método
+            campoCuotas.style.display = (metodo === 'credito') ? 'block' : 'none';
+            campoCliente.style.display = (metodo === 'cuenta_corriente') ? 'block' : 'none';
+            campoEfectivo.style.display = (metodo === 'efectivo') ? 'block' : 'none'; // Nuevo
+            
+            if (metodo !== 'cuenta_corriente') {
+                clienteSeleccionado = null;
+                clienteIdInput.value = '';
+                buscarClienteInput.value = '';
+            }
+            
+            // Si no es efectivo, limpiamos el campo de abono
+            if (metodo !== 'efectivo') {
+                montoAbonaInput.value = '';
+                vueltoDisplay.innerText = '$ 0.00';
+            }
+            
+            actualizarCarrito();
+        });
+    });
+
+    finalizarVentaBtn.addEventListener('click', function() {
+        const metodoPago = document.querySelector('input[name="metodo_pago"]:checked').value;
+        const cuotas = cuotasInput.value;
+        const cliente_id = clienteIdInput.value;
+
+        if (carrito.length === 0) { alert('El carrito está vacío.'); return; }
+        if (metodoPago === 'cuenta_corriente' && !cliente_id) { alert('Debe seleccionar un cliente.'); buscarClienteInput.focus(); return; }
+
+        fetch("{% url 'registrar_venta' %}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+            body: JSON.stringify({ carrito, metodo_pago: metodoPago, cuotas, cliente_id })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.mensaje);
+                carrito = [];
+                clienteSeleccionado = null;
+                clienteIdInput.value = '';
+                buscarClienteInput.value = '';
+                montoAbonaInput.value = ''; // Limpiar pago
+                vueltoDisplay.innerText = '$ 0.00';
+                actualizarCarrito();
+            } else { alert('Error: ' + data.error); }
+        });
+    });
+
+    actualizarCarrito();
+});
+</script>
+{% endblock %}

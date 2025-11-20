@@ -1,0 +1,144 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+    <h1 class="mb-0">Reportes y Cierre de Caja</h1>
+    <form method="GET" action="{% url 'reportes_dashboard' %}" class="d-flex flex-wrap gap-2">
+        <input type="date" name="fecha_inicio" class="form-control" style="width: auto;" value="{{ fecha_inicio }}">
+        <input type="date" name="fecha_fin" class="form-control" style="width: auto;" value="{{ fecha_fin }}">
+        
+        {% if user.is_superuser %}
+        <select name="sucursal_id" class="form-select" style="width: auto;">
+            <option value="">Todas las Sucursales</option>
+            {% for s in todas_las_sucursales %}
+            <option value="{{ s.id }}" {% if sucursal_seleccionada.id == s.id %}selected{% endif %}>{{ s.nombre }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+        
+        <button type="submit" class="btn btn-primary"><i class="bi bi-funnel-fill"></i> Filtrar</button>
+    </form>
+</div>
+
+{% if sucursal_seleccionada %}
+<h4 class="text-muted mb-3">Mostrando reportes para: {{ sucursal_seleccionada.nombre }}</h4>
+{% elif user.is_superuser %}
+<h4 class="text-muted mb-3">Mostrando reportes para: Todas las Sucursales</h4>
+{% endif %}
+
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card shadow-sm mb-3">
+            <div class="card-header">
+                <i class="bi bi-calculator"></i> **Cierre de Caja ({{ fecha_inicio }} al {{ fecha_fin }})**
+            </div>
+            <div class="card-body">
+                
+                <h5 class="text-success"><i class="bi bi-arrow-down-circle-fill"></i> INGRESOS REALES (Dinero que entró)</h5>
+                <ul class="list-group list-group-flush">
+                    {% for item in ingresos_por_metodo %}
+                        {% if item.total > 0 %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center ps-0">
+                            Ventas en {{ item.nombre_metodo }}
+                            <span class="badge bg-success rounded-pill fs-6">${{ item.total|floatformat:2 }}</span>
+                        </li>
+                        {% endif %}
+                    {% empty %}
+                        <li class="list-group-item text-muted ps-0">Sin ventas al contado en este período.</li>
+                    {% endfor %}
+                    
+                    {% if total_cobros_fiado > 0 %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center ps-0">
+                        Cobros de Cuentas Corrientes (Fiado)
+                        <span class="badge bg-primary rounded-pill fs-6">${{ total_cobros_fiado|floatformat:2 }}</span>
+                    </li>
+                    {% endif %}
+                </ul>
+                
+                <h5 class="mt-4 text-danger"><i class="bi bi-arrow-up-circle-fill"></i> SALIDAS REALES (Dinero que salió)</h5>
+                <ul class="list-group list-group-flush">
+                     <li class="list-group-item d-flex justify-content-between align-items-center ps-0">
+                        Pagos a Proveedores
+                        <span class="badge bg-danger rounded-pill fs-6">-${{ total_pagos_proveedor|floatformat:2 }}</span>
+                    </li>
+                </ul>
+                
+                <h5 class="mt-4 text-warning"><i class="bi bi-journal-text"></i> MOVIMIENTOS A CRÉDITO (No afectan caja)</h5>
+                <ul class="list-group list-group-flush">
+                     <li class="list-group-item d-flex justify-content-between align-items-center ps-0">
+                        Ventas en Cuenta Corriente (Fiado)
+                        <span class="badge bg-warning text-dark rounded-pill fs-6">${{ total_ventas_fiadas|floatformat:2 }}</span>
+                    </li>
+                </ul>
+                
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card shadow-sm mb-3 sticky-top" style="top: 20px;">
+            <div class="card-header"><i class="bi bi-briefcase-fill"></i> Balances Generales (Totales Históricos)</div>
+            <div class="card-body">
+                <p class="mb-1">Total por Cobrar (Clientes):</p>
+                <h4 class="text-success">${{ balance_clientes|floatformat:2 }}</h4>
+                <hr>
+                <p class="mb-1">Total por Pagar (Proveedores):</p>
+                <h4 class="text-danger">${{ balance_proveedores|floatformat:2 }}</h4>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mt-3">
+    <div class="card-header"><i class="bi bi-list-ol"></i> Historial de Movimientos (Últimos 50 del período)</div>
+    <div class="card-body">
+        <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+            <table class="table table-sm table-striped">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th>Descripción</th>
+                        <th>Monto</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for venta in ventas_listado %}
+                    <tr class="{% if venta.metodo_pago == 'cuenta_corriente' %}table-warning{% else %}table-light{% endif %}">
+                        <td>{{ venta.fecha_hora|date:"d/m/Y H:i" }}</td>
+                        <td><span class="badge {% if venta.metodo_pago == 'cuenta_corriente' %}bg-warning text-dark{% else %}bg-success{% endif %}">Venta</span></td>
+                        <td>Venta #{{ venta.id }} ({{ venta.get_metodo_pago_display }})</td>
+                        <td>${{ venta.total|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                    
+                    {% for pago in pagos_clientes_listado %}
+                    <tr class="table-info">
+                        <td>{{ pago.fecha|date:"d/m/Y H:i" }}</td>
+                        <td><span class="badge bg-info">Cobro</span></td>
+                        <td>Pago de {{ pago.cliente.nombre_completo }}</td>
+                        <td>${{ pago.monto|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                    
+                    {% for pago in pagos_proveedores_listado %}
+                    <tr class="table-danger">
+                        <td>{{ pago.fecha|date:"d/m/Y H:i" }}</td>
+                        <td><span class="badge bg-danger">Pago</span></td>
+                        <td>Pago a {{ pago.proveedor.nombre }}</td>
+                        <td>-${{ pago.monto|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                    
+                    {% if not ventas_listado and not pagos_clientes_listado and not pagos_proveedores_listado %}
+                    <tr><td colspan="4" class="text-center text-muted">Sin movimientos en el período seleccionado.</td></tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
