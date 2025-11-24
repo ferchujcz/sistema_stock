@@ -47,9 +47,9 @@
             <div class="col-md-6 mb-3">
                 <div class="card text-white bg-success shadow-sm h-100">
                     <div class="card-body">
-                        <h5 class="card-title"><i class="bi bi-cash-coin"></i> Ventas del Día (Sucursal)</h5>
-                        <h3 class="card-text">${{ total_vendido_hoy|default:"0.00"|floatformat:2 }}</h3>
-                        <p class="card-text mb-0">{{ numero_ventas_hoy|default:"0" }} transacciones</p>
+                        <h5 class="card-title"><i class="bi bi-cash-coin"></i> Predicción Semanal</h5>
+                        <h3 class="card-text">${{ prediccion_7_dias|floatformat:0 }} unidades</h3>
+                        <p class="card-text mb-0">Estimación de ventas para los próximos 7 días (Se actualiza cada Martes)</p>
                     </div>
                 </div>
             </div>

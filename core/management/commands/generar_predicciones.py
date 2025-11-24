@@ -17,9 +17,15 @@ class Command(BaseCommand):
     help = 'Genera las predicciones de ventas para los próximos 7 días usando Prophet'
 
     def handle(self, *args, **options):
+        DIA_ELEGIDO = 1
         hoy = timezone.now().date()
-        self.stdout.write(self.style.MIGRATE_HEADING(f"--- Iniciando IA de Predicción para {hoy} ---"))
 
+        if hoy.weekday() != DIA_ELEGIDO:
+            self.stdout.write(self.style.WARNING(f"Hoy es {hoy.strftime('%A')}. La IA solo corre los Lunes. Ahorrando energía... 💤"))
+            return # Se detiene acá y no gasta CPU
+        # ------------------------------------
+
+        self.stdout.write(self.style.MIGRATE_HEADING(f"--- Iniciando IA de Predicción (Semanal) para {hoy} ---"))
         sucursales = Sucursal.objects.all()
         productos = Producto.objects.all()
 
