@@ -60,71 +60,94 @@ document.addEventListener('DOMContentLoaded', function() {
     const cantidadInput = document.getElementById('cantidad');
     const form = document.getElementById('form-agregar-stock');
 
-    let productoSeleccionado = null;
-
-    // Función para seleccionar un producto
+    // --- FUNCIÓN PARA SELECCIONAR EL PRODUCTO ---
     function seleccionarProducto(producto) {
-        productoSeleccionado = producto;
-        buscarInput.value = producto.nombre; // Pone el nombre en el input
-        productoIdInput.value = producto.id; // Guarda el ID en el campo oculto
-        resultadosDiv.innerHTML = ''; // Limpia los resultados
-        cantidadInput.focus(); // Mueve el foco a la cantidad
+        buscarInput.value = producto.nombre; // Mostramos el nombre
+        productoIdInput.value = producto.id; // Guardamos el ID oculto
+        resultadosDiv.innerHTML = ''; // Limpiamos la lista
+        buscarInput.classList.remove('is-invalid');
+        buscarInput.classList.add('is-valid');
+        
+        // Movemos el foco a la cantidad para agilizar
+        cantidadInput.focus();
         cantidadInput.select();
     }
 
-    // Lógica de búsqueda y escáner
-    buscarInput.addEventListener('keyup', function(event) {
-        if (event.key === 'Enter') { // Lector de código de barras
-            event.preventDefault();
+    // --- 1. ESCÁNER DE CÓDIGO DE BARRAS (DETECTAR ENTER) ---
+    buscarInput.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault(); // ¡Importante! Evita que se envíe el formulario
             const codigo = buscarInput.value.trim();
             if (codigo) {
-                fetch(`/api/buscar-por-codigo/?codigo=${codigo}`)
-                    .then(response => {
-                        if (!response.ok) {
-                            buscarInput.classList.add('is-invalid');
-                            throw new Error('Producto no encontrado');
-                        }
-                        buscarInput.classList.remove('is-invalid');
-                        return response.json();
-                    })
-                    .then(producto => seleccionarProducto(producto))
-                    .catch(error => {
-                        alert(error.message);
-                        buscarInput.value = '';
-                    });
+                buscarPorCodigo(codigo);
             }
-        } else { // Búsqueda por nombre
-            const query = buscarInput.value;
-            productoIdInput.value = ''; // Invalidar producto si se escribe
-            if (query.length < 2) {
-                resultadosDiv.innerHTML = '';
-                return;
-            }
-            fetch(`/api/buscar-productos/?term=${query}`)
-                .then(response => response.json())
-                .then(data => {
-                    resultadosDiv.innerHTML = '';
-                    data.forEach(producto => {
-                        const div = document.createElement('div');
-                        div.innerHTML = producto.nombre;
-                        div.classList.add('list-group-item', 'list-group-item-action');
-                        div.style.cursor = 'pointer';
-                        div.onclick = () => seleccionarProducto(producto);
-                        resultadosDiv.appendChild(div);
-                    });
-                });
         }
     });
 
-    // Validar antes de enviar
+    function buscarPorCodigo(codigo) {
+        // Usamos la API que ya creamos
+        fetch(`/api/buscar-por-codigo/?codigo=${codigo}`)
+            .then(response => {
+                if (!response.ok) { 
+                    buscarInput.classList.add('is-invalid');
+                    resultadosDiv.innerHTML = '';
+                    throw new Error('Producto no encontrado'); 
+                }
+                return response.json();
+            })
+            .then(producto => {
+                seleccionarProducto(producto);
+            })
+            .catch(error => {
+                console.log(error); // Silencioso o podés poner un alert
+            });
+    }
+
+    // --- 2. BÚSQUEDA POR NOMBRE (MIENTRAS ESCRIBÍS) ---
+    buscarInput.addEventListener('input', function(event) {
+        const query = buscarInput.value.trim();
+        productoIdInput.value = ''; // Reseteamos el ID si el usuario borra o cambia
+        buscarInput.classList.remove('is-valid');
+        buscarInput.classList.remove('is-invalid');
+
+        // Si parece un código de barras (solo números y largo), no buscamos por nombre
+        if (/^\d+$/.test(query) && query.length > 6) {
+            resultadosDiv.innerHTML = '';
+            return; 
+        }
+
+        if (query.length < 2) {
+            resultadosDiv.innerHTML = '';
+            return;
+        }
+
+        fetch(`/api/buscar-productos/?term=${query}`)
+            .then(response => response.json())
+            .then(data => {
+                resultadosDiv.innerHTML = '';
+                if (data.length === 0) {
+                    resultadosDiv.innerHTML = '<div class="list-group-item text-muted">No se encontraron productos</div>';
+                }
+                data.forEach(producto => {
+                    const div = document.createElement('div');
+                    div.innerHTML = producto.nombre;
+                    div.classList.add('list-group-item', 'list-group-item-action');
+                    div.style.cursor = 'pointer';
+                    div.onclick = () => seleccionarProducto(producto);
+                    resultadosDiv.appendChild(div);
+                });
+            });
+    });
+
+    // --- 3. VALIDACIÓN ANTES DE ENVIAR ---
     form.addEventListener('submit', function(event) {
         if (!productoIdInput.value) {
-            event.preventDefault(); // Detener el envío del formulario
-            alert('Por favor, selecciona un producto válido de la lista o escanéalo.');
+            event.preventDefault(); // Frenar envío
+            alert('Por favor, selecciona un producto válido de la lista o escanéalo correctamente.');
             buscarInput.focus();
+            buscarInput.classList.add('is-invalid');
         }
     });
-
 });
 </script>
 {% endblock %}

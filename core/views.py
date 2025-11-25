@@ -237,7 +237,7 @@ def stock_detalle(request):
     if not request.user.is_superuser and sucursal_usuario:
         base_query = Producto.objects.filter(lotes__sucursal=sucursal_usuario)
 
-    productos_con_stock = base_query.filter(lotes__cantidad__gt=0).annotate(
+    productos_con_stock = base_query.annotate(
         total_gondola=Sum(Case(When(lotes__ubicacion='gondola', lotes__sucursal=sucursal_usuario, then='lotes__cantidad'), default=0, output_field=IntegerField())) if sucursal_usuario else Sum(Case(When(lotes__ubicacion='gondola', then='lotes__cantidad'), default=0, output_field=IntegerField())),
         total_deposito=Sum(Case(When(lotes__ubicacion='deposito', lotes__sucursal=sucursal_usuario, then='lotes__cantidad'), default=0, output_field=IntegerField())) if sucursal_usuario else Sum(Case(When(lotes__ubicacion='deposito', then='lotes__cantidad'), default=0, output_field=IntegerField())),
         vencimiento_proximo=Min('lotes__fecha_vencimiento', filter=Q(lotes__sucursal=sucursal_usuario)) if sucursal_usuario else Min('lotes__fecha_vencimiento')
@@ -248,15 +248,22 @@ def stock_detalle(request):
         dias_para_vencer = None
         if producto.vencimiento_proximo:
             dias_para_vencer = (producto.vencimiento_proximo - hoy).days
-
         ventas_30_dias = DetalleVenta.objects.filter(
             producto=producto, venta__fecha_hora__gte=hace_30_dias
         ).aggregate(total_vendido=Sum('cantidad'))['total_vendido'] or 0
         velocidad_venta = ventas_30_dias / 30.0 if ventas_30_dias > 0 else 0 # Evitar división por cero
 
-        en_riesgo = False
+        
         stock_total = (producto.total_gondola or 0) + (producto.total_deposito or 0)
-        if velocidad_venta > 0 and dias_para_vencer is not None and dias_para_vencer > 0:
+        en_riesgo = False
+        if stock_total == 0:
+             en_riesgo = True # ¡Alerta Roja!
+        
+        # Caso 2: Stock bajo (menor al mínimo)
+        elif stock_total < producto.stock_minimo:
+             en_riesgo = True # Alerta Roja     
+                
+        elif velocidad_venta > 0 and dias_para_vencer is not None and dias_para_vencer > 0:
             dias_de_stock_restante = stock_total / velocidad_venta
             if dias_de_stock_restante > dias_para_vencer:
                 en_riesgo = True

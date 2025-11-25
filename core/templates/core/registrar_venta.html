@@ -187,43 +187,26 @@ document.addEventListener('DOMContentLoaded', function() {
     let clienteSeleccionado = null;
     let totalCalculado = 0; // Guardamos el total globalmente para calcular vuelto
 
-    // --- BÚSQUEDA DE PRODUCTOS ---
-    buscarInput.addEventListener('keyup', function(event) {
+// --- BÚSQUEDA Y LECTOR DE CÓDIGO DE BARRAS (MEJORADO) ---
+    buscarInput.addEventListener('keydown', function(event) { // Usamos keydown en vez de keyup para mayor control
         if (event.key === 'Enter') {
-            event.preventDefault();
+            event.preventDefault(); // ¡CRÍTICO! Evita que se recargue la página
             const codigo = buscarInput.value.trim();
-            if (codigo) buscarPorCodigo(codigo);
-        } else {
-            buscarPorNombre(buscarInput.value);
+            if (codigo) {
+                buscarPorCodigo(codigo);
+            }
         }
     });
-    function buscarPorCodigo(codigo) {
-        fetch(`/api/buscar-por-codigo/?codigo=${codigo}`)
-            .then(response => {
-                if (!response.ok) { buscarInput.classList.add('is-invalid'); throw new Error('Producto no encontrado'); }
-                buscarInput.classList.remove('is-invalid');
-                return response.json();
-            })
-            .then(producto => { agregarAlCarrito(producto); buscarInput.value = ''; })
-            .catch(error => alert(error.message));
-    }
-    function buscarPorNombre(query) {
-         if (query.length < 2) { resultadosDiv.innerHTML = ''; return; }
-        fetch(`/api/buscar-productos/?term=${query}`)
-            .then(response => response.json())
-            .then(data => {
-                resultadosDiv.innerHTML = '';
-                data.forEach(producto => {
-                    const div = document.createElement('div');
-                    div.innerHTML = producto.nombre;
-                    div.classList.add('list-group-item', 'list-group-item-action');
-                    div.style.cursor = 'pointer';
-                    div.onclick = () => agregarAlCarrito(producto);
-                    resultadosDiv.appendChild(div);
-                });
-            });
-    }
 
+    // Mantenemos el evento input para la búsqueda por nombre mientras escribís
+    buscarInput.addEventListener('input', function(event) {
+        const query = buscarInput.value.trim();
+        // Si parece un código de barras (solo números y largo), no buscamos por nombre todavía
+        if (/^\d+$/.test(query) && query.length > 6) {
+            return; 
+        }
+        buscarPorNombre(query);
+    });
     // --- BÚSQUEDA DE CLIENTES ---
     buscarClienteInput.addEventListener('keyup', function(event) {
         buscarPorNombreCliente(buscarClienteInput.value);
