@@ -262,7 +262,7 @@ def stock_detalle(request):
         # Caso 2: Stock bajo (menor al mínimo)
         elif stock_total < producto.stock_minimo:
              en_riesgo = True # Alerta Roja     
-                
+
         elif velocidad_venta > 0 and dias_para_vencer is not None and dias_para_vencer > 0:
             dias_de_stock_restante = stock_total / velocidad_venta
             if dias_de_stock_restante > dias_para_vencer:
@@ -910,23 +910,41 @@ def procesar_importacion_excel(request):
 
 @login_required
 def cargar_factura_ocr(request):
+    # Verificamos si la librería de Google está instalada
     if vision is None:
-        messages.error(request, "Función no disponible (falta 'google-cloud-vision').")
+        messages.error(request, "La función de carga por foto no está disponible (falta librería 'google-cloud-vision').")
         return redirect('dashboard')
+        
     sucursal_usuario = obtener_sucursal_usuario(request)
     if not sucursal_usuario:
-        messages.error(request, "Necesitas sucursal asignada.")
+        messages.error(request, "Necesitas una sucursal asignada para usar esta función.")
         return redirect('dashboard')
 
     if request.method == 'POST' and request.FILES.get('imagen_factura'):
         try:
-            os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'gcloud-credentials.json'
+            # --- CONFIGURACIÓN DE CREDENCIALES (LOCAL vs NUBE) ---
+            # Definimos la ruta absoluta en PythonAnywhere (ajustá 'panchito25' si es otro usuario)
+            ruta_nube = '/home/panchito25/sistema_stock/gcloud-credentials.json'
+            
+            # Verificamos si el archivo existe en la ruta de la nube
+            if os.path.exists(ruta_nube):
+                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = ruta_nube
+            else:
+                # Si no, asumimos que estamos en local (tu PC)
+                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'gcloud-credentials.json'
+            
+            # --- FIN CONFIGURACIÓN ---
+
             client = vision.ImageAnnotatorClient()
             content = request.FILES['imagen_factura'].read()
             image = vision.Image(content=content)
             response = client.document_text_detection(image=image)
-            if response.error.message: raise Exception(f'{response.error.message}\nVerifica API.')
+            
+            if response.error.message: 
+                raise Exception(f'{response.error.message}\nVerifica API.')
+            
             full_text = response.text_annotations[0].description if response.text_annotations else ""
+            
         except Exception as e:
             messages.error(request, f"Error al procesar con IA: {e}")
             return redirect('cargar_factura_ocr')
@@ -983,7 +1001,6 @@ def cargar_factura_ocr(request):
         return render(request, 'core/confirmar_factura_ocr.html', context)
 
     return render(request, 'core/cargar_factura_ocr.html')
-
 @login_required
 def guardar_factura_confirmada(request):
     sucursal_usuario = obtener_sucursal_usuario(request)
