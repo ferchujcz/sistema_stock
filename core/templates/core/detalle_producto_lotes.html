@@ -26,19 +26,24 @@
                 <tbody>
                     {% for lote in lotes %}
                     <tr>
-                        <td>{{ lote.get_ubicacion_display }}</td>
+                        <td>
+                            {% if lote.ubicacion == 'gondola' %}
+                                <span class="badge bg-success">Góndola</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Depósito</span>
+                            {% endif %}
+                        </td>
                         <td>{{ lote.cantidad }}</td>
-                        <td>{{ lote.fecha_vencimiento|date:"d/m/Y"|default:"No perecedero" }}</td>
+                        <td data-order="{{ lote.fecha_vencimiento|date:'Ymd' }}">
+                            {{ lote.fecha_vencimiento|date:"d/m/Y"|default:"No perecedero" }}
+                        </td>
                         <td>
                             <a href="{% url 'editar_stock' lote.id %}" class="btn btn-sm btn-outline-primary" title="Editar Lote">
                                 <i class="bi bi-pencil"></i> Editar
                             </a>
-                            </td>
+                        </td>
                     </tr>
                     {% empty %}
-                    <tr>
-                        <td colspan="4" class="text-center">No se encontraron lotes para este producto.</td>
-                    </tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -49,16 +54,35 @@
 
 {% block javascript %}
 <script>
-    // Usamos $(document).ready() para asegurar que jQuery (cargado en base.html) esté listo
     $(document).ready(function() {
-        // Activamos DataTables en nuestra nueva tabla
         new DataTable('#tablaLotes', {
-            responsive: true, // Se adapta a celulares
+            responsive: true,
+            // TRADUCCIÓN DIRECTA
             language: {
-                // Traducción a español
-                url: '//cdn.datatables.net/plug-ins/2.0.8/i18n/es-ES.json'
+                "decimal": "",
+                "emptyTable": "No se encontraron lotes para este producto",
+                "info": "Mostrando _START_ a _END_ de _TOTAL_ lotes",
+                "infoEmpty": "Mostrando 0 a 0 de 0 lotes",
+                "infoFiltered": "(filtrado de _MAX_ lotes totales)",
+                "infoPostFix": "",
+                "thousands": ",",
+                "lengthMenu": "Mostrar _MENU_ lotes",
+                "loadingRecords": "Cargando...",
+                "processing": "Procesando...",
+                "search": "Buscar:",
+                "zeroRecords": "No se encontraron lotes coincidentes",
+                "paginate": {
+                    "first": "Primero",
+                    "last": "Último",
+                    "next": "Siguiente",
+                    "previous": "Anterior"
+                },
+                "aria": {
+                    "sortAscending": ": activar para ordenar la columna ascendente",
+                    "sortDescending": ": activar para ordenar la columna descendente"
+                }
             },
-            // Ordenar por fecha de vencimiento (columna 2) por defecto
+            // Ordenar por vencimiento (columna 2)
             order: [[ 2, 'asc' ]]
         });
     });
