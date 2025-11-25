@@ -1,6 +1,16 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
+
+<style>
+    #reader { width: 100%; margin-bottom: 15px; display: none; border: 2px solid #007bff; border-radius: 8px; }
+    
+    /* Ocultar flechas en inputs numéricos */
+    input[type=number]::-webkit-outer-spin-button,
+    input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+</style>
+
 <div class="row justify-content-center">
     <div class="col-md-8 col-lg-6">
         <div class="card shadow-sm">
@@ -13,11 +23,24 @@
 
                     <div class="mb-3">
                         <label for="buscar-producto" class="form-label">Escanear Código o Buscar Producto</label>
-                        <input type="text" id="buscar-producto" class="form-control form-control-lg" placeholder="Escanea o escribe..." autofocus>
+                        <div class="input-group">
+                            <button class="btn btn-outline-primary" type="button" id="btn-scan-camera" title="Escanear con Cámara">
+                                <i class="bi bi-camera-fill"></i>
+                            </button>
+                            
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" id="buscar-producto" class="form-control form-control-lg" placeholder="Escanea o escribe..." autofocus>
+                        </div>
+                        
+                        <div id="reader"></div>
+                        <div class="text-center mt-2" id="btn-stop-container" style="display: none;">
+                            <button class="btn btn-danger btn-sm" type="button" id="btn-stop-camera">Detener Cámara</button>
+                        </div>
+
                         <div id="resultados-busqueda" class="list-group position-absolute" style="z-index: 1000; width: 95%;"></div>
                         <input type="hidden" name="producto" id="producto_id" required>
                     </div>
-
+                    
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="cantidad" class="form-label">Cantidad</label>
@@ -28,7 +51,7 @@
                             <input type="date" name="fecha_vencimiento" id="fecha_vencimiento" class="form-control">
                         </div>
                     </div>
-
+                    
                     <div class="mb-4">
                         <label for="ubicacion" class="form-label">Ubicación</label>
                         <select name="ubicacion" id="ubicacion" class="form-select">
@@ -54,29 +77,77 @@
 {% block javascript %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Referencias DOM
     const buscarInput = document.getElementById('buscar-producto');
     const resultadosDiv = document.getElementById('resultados-busqueda');
     const productoIdInput = document.getElementById('producto_id');
     const cantidadInput = document.getElementById('cantidad');
     const form = document.getElementById('form-agregar-stock');
+    
+    // Referencias CÁMARA
+    const btnScanCamera = document.getElementById('btn-scan-camera');
+    const btnStopCamera = document.getElementById('btn-stop-camera');
+    const btnStopContainer = document.getElementById('btn-stop-container');
+    const readerDiv = document.getElementById('reader');
+    let html5QrcodeScanner = null;
 
-    // --- FUNCIÓN PARA SELECCIONAR EL PRODUCTO ---
+    // --- LÓGICA DE CÁMARA ---
+    btnScanCamera.addEventListener('click', function() {
+        readerDiv.style.display = 'block';
+        btnStopContainer.style.display = 'block';
+        
+        html5QrcodeScanner = new Html5Qrcode("reader");
+        // Configuración para códigos de barras (rectangular)
+        const config = { fps: 10, qrbox: { width: 250, height: 150 } }; 
+        
+        html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
+        .catch(err => {
+            console.error(err);
+            alert("Error al iniciar cámara. Asegurate de estar en HTTPS.");
+            readerDiv.style.display = 'none';
+            btnStopContainer.style.display = 'none';
+        });
+    });
+
+    function onScanSuccess(decodedText, decodedResult) {
+        // 1. Detener cámara
+        html5QrcodeScanner.stop().then((ignore) => {
+            readerDiv.style.display = 'none';
+            btnStopContainer.style.display = 'none';
+        }).catch((err) => { console.log(err); });
+
+        // 2. Buscar el producto escaneado
+        buscarInput.value = decodedText;
+        buscarPorCodigo(decodedText);
+        
+        // Feedback vibración
+        if (navigator.vibrate) navigator.vibrate(200);
+    }
+
+    btnStopCamera.addEventListener('click', function() {
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.stop().then((ignore) => {
+                readerDiv.style.display = 'none';
+                btnStopContainer.style.display = 'none';
+            }).catch((err) => { console.log(err); });
+        }
+    });
+
+
+    // --- LÓGICA DE BÚSQUEDA NORMAL ---
     function seleccionarProducto(producto) {
-        buscarInput.value = producto.nombre; // Mostramos el nombre
-        productoIdInput.value = producto.id; // Guardamos el ID oculto
-        resultadosDiv.innerHTML = ''; // Limpiamos la lista
+        buscarInput.value = producto.nombre;
+        productoIdInput.value = producto.id;
+        resultadosDiv.innerHTML = '';
         buscarInput.classList.remove('is-invalid');
         buscarInput.classList.add('is-valid');
-        
-        // Movemos el foco a la cantidad para agilizar
         cantidadInput.focus();
         cantidadInput.select();
     }
 
-    // --- 1. ESCÁNER DE CÓDIGO DE BARRAS (DETECTAR ENTER) ---
     buscarInput.addEventListener('keydown', function(event) {
         if (event.key === 'Enter') {
-            event.preventDefault(); // ¡Importante! Evita que se envíe el formulario
+            event.preventDefault();
             const codigo = buscarInput.value.trim();
             if (codigo) {
                 buscarPorCodigo(codigo);
@@ -85,7 +156,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     function buscarPorCodigo(codigo) {
-        // Usamos la API que ya creamos
         fetch(`/api/buscar-por-codigo/?codigo=${codigo}`)
             .then(response => {
                 if (!response.ok) { 
@@ -99,18 +169,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 seleccionarProducto(producto);
             })
             .catch(error => {
-                console.log(error); // Silencioso o podés poner un alert
+                console.log(error);
             });
     }
 
-    // --- 2. BÚSQUEDA POR NOMBRE (MIENTRAS ESCRIBÍS) ---
     buscarInput.addEventListener('input', function(event) {
         const query = buscarInput.value.trim();
-        productoIdInput.value = ''; // Reseteamos el ID si el usuario borra o cambia
+        productoIdInput.value = ''; 
         buscarInput.classList.remove('is-valid');
         buscarInput.classList.remove('is-invalid');
 
-        // Si parece un código de barras (solo números y largo), no buscamos por nombre
         if (/^\d+$/.test(query) && query.length > 6) {
             resultadosDiv.innerHTML = '';
             return; 
@@ -139,10 +207,9 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     });
 
-    // --- 3. VALIDACIÓN ANTES DE ENVIAR ---
     form.addEventListener('submit', function(event) {
         if (!productoIdInput.value) {
-            event.preventDefault(); // Frenar envío
+            event.preventDefault();
             alert('Por favor, selecciona un producto válido de la lista o escanéalo correctamente.');
             buscarInput.focus();
             buscarInput.classList.add('is-invalid');
