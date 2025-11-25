@@ -1,6 +1,11 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
+
+<style>
+    #reader { width: 100%; margin-bottom: 15px; display: none; border: 2px solid #007bff; border-radius: 8px; }
+</style>
+
 <div class="row justify-content-center">
     <div class="col-md-9 col-lg-7">
         <div class="card shadow-sm">
@@ -10,15 +15,26 @@
             <div class="card-body">
                 <form method="post">
                     {% csrf_token %}
-
+                    
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <label for="id_nombre" class="form-label">Nombre del Producto</label>
                             <input type="text" class="form-control" id="id_nombre" name="nombre" value="{{ producto.nombre|default:'' }}" required>
                         </div>
+                        
                         <div class="col-md-6">
                             <label for="id_codigo_barras" class="form-label">Código de Barras</label>
-                            <input type="text" class="form-control" id="id_codigo_barras" name="codigo_barras" value="{{ producto.codigo_barras|default:'' }}">
+                            <div class="input-group">
+                                <button class="btn btn-outline-secondary" type="button" id="btn-scan-camera" title="Escanear">
+                                    <i class="bi bi-camera-fill"></i>
+                                </button>
+                                <input type="text" class="form-control" id="id_codigo_barras" name="codigo_barras" value="{{ producto.codigo_barras|default:'' }}">
+                            </div>
+                            
+                            <div id="reader" class="mt-2"></div>
+                            <div class="text-center mt-2" id="btn-stop-container" style="display: none;">
+                                <button class="btn btn-danger btn-sm" type="button" id="btn-stop-camera">Detener Cámara</button>
+                            </div>
                         </div>
                     </div>
 
@@ -58,11 +74,11 @@
                         </div>
                     </div>
 
-                    <div class="form-check form-switch mb-4">
+                    <div class="form-check form-switch mb-2">
                         <input class="form-check-input" type="checkbox" role="switch" id="es_perecedero" name="es_perecedero" {% if producto.es_perecedero %}checked{% endif %}>
                         <label class="form-check-label" for="es_perecedero">¿Es un producto perecedero? (Con vencimiento)</label>
                     </div>
-                    
+
                     <div class="form-check form-switch mb-4">
                         <input class="form-check-input" type="checkbox" role="switch" id="es_favorito" name="es_favorito" {% if producto.es_favorito %}checked{% endif %}>
                         <label class="form-check-label" for="es_favorito">¿Es un Producto Favorito? (Mostrar en Venta Rápida)</label>
@@ -89,6 +105,9 @@
 {% block javascript %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // ==========================================
+    // 1. LÓGICA DE CÁLCULO DE PRECIO SUGERIDO
+    // ==========================================
     const costoInput = document.getElementById('id_costo');
     const categoriaSelect = document.getElementById('id_categoria');
     const precioVentaInput = document.getElementById('id_precio_venta');
@@ -104,6 +123,8 @@ document.addEventListener('DOMContentLoaded', function() {
             if (costo > 0 && categoriaId && margenPorcentaje > 0) {
                 const margen = margenPorcentaje / 100;
                 const precioSugerido = (costo * (1 + margen)).toFixed(2);
+                
+                // Asignamos directamente (sin if, como corregimos antes)
                 precioVentaInput.value = precioSugerido;
             }
         } catch (e) {
@@ -113,6 +134,58 @@ document.addEventListener('DOMContentLoaded', function() {
 
     costoInput.addEventListener('input', calcularPrecioSugerido);
     categoriaSelect.addEventListener('change', calcularPrecioSugerido);
+
+    // ==========================================
+    // 2. LÓGICA DE ESCÁNER DE CÁMARA
+    // ==========================================
+    const btnScanCamera = document.getElementById('btn-scan-camera');
+    const btnStopCamera = document.getElementById('btn-stop-camera');
+    const btnStopContainer = document.getElementById('btn-stop-container');
+    const readerDiv = document.getElementById('reader');
+    const codigoInput = document.getElementById('id_codigo_barras');
+    let html5QrcodeScanner = null;
+
+    btnScanCamera.addEventListener('click', function() {
+        readerDiv.style.display = 'block';
+        btnStopContainer.style.display = 'block';
+        
+        html5QrcodeScanner = new Html5Qrcode("reader");
+        const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+        
+        html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
+        .catch(err => {
+            console.error(err);
+            alert("Error al iniciar cámara. Asegurate de usar HTTPS.");
+            readerDiv.style.display = 'none';
+            btnStopContainer.style.display = 'none';
+        });
+    });
+
+    function onScanSuccess(decodedText, decodedResult) {
+        // 1. Detener cámara
+        html5QrcodeScanner.stop().then((ignore) => {
+            readerDiv.style.display = 'none';
+            btnStopContainer.style.display = 'none';
+        }).catch((err) => { console.log(err); });
+
+        // 2. Poner el código en el input
+        codigoInput.value = decodedText;
+        
+        // 3. Feedback visual
+        if (navigator.vibrate) navigator.vibrate(200);
+        
+        // 4. Mover el foco al siguiente campo lógico (Costo)
+        costoInput.focus();
+    }
+
+    btnStopCamera.addEventListener('click', function() {
+        if (html5QrcodeScanner) {
+            html5QrcodeScanner.stop().then((ignore) => {
+                readerDiv.style.display = 'none';
+                btnStopContainer.style.display = 'none';
+            }).catch((err) => { console.log(err); });
+        }
+    });
 });
 </script>
 {% endblock %}
