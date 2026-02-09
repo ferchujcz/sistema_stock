@@ -3,6 +3,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone 
 from datetime import timedelta 
+import uuid
 
 
 class Sucursal(models.Model):
@@ -275,3 +276,15 @@ class PrediccionVenta(models.Model):
 
     def __str__(self):
         return f"{self.producto.nombre} ({self.sucursal.nombre}) - {self.fecha}: {self.cantidad_predicha}"
+
+class SesionEscaneo(models.Model):
+    # Un ID único para que no se mezclen las sesiones de distintos cajeros
+    uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # El último código que leyó el celular
+    ultimo_codigo = models.CharField(max_length=100, blank=True, null=True)
+    # Para saber si la PC ya "agarró" ese código
+    codigo_procesado = models.BooleanField(default=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return str(self.uuid)

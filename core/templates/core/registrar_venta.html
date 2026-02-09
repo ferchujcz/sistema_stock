@@ -24,6 +24,9 @@
                     <button class="btn btn-outline-primary" type="button" id="btn-scan-camera" title="Escanear con Cámara">
                         <i class="bi bi-camera-fill"></i>
                     </button>
+                    <button class="btn btn-outline-dark" type="button" id="btn-connect-mobile" title="Usar Celular como Escáner">
+                        <i class="bi bi-qr-code-scan"></i>
+                    </button>
                     
                     <span class="input-group-text"><i class="bi bi-search"></i></span>
                     <input type="text" id="buscar-producto" class="form-control form-control-lg" placeholder="Escribí o escaneá..." autofocus>
@@ -150,9 +153,31 @@
     </div>
   </div>
 </div>
+
+
+<div class="modal fade" id="modalConnectMobile" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content text-center">
+            <div class="modal-header border-0">
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h5 class="mb-3">Escanear para Conectar</h5>
+                <div id="qrcode-container" class="d-flex justify-content-center mb-3"></div>
+                <p class="text-muted small">Escaneá este QR con tu celular para usarlo como lector de barras inalámbrico.</p>
+                <div class="spinner-border text-primary d-none" id="spinner-espera" role="status"></div>
+                <div class="alert alert-success d-none" id="alerta-conectado">
+                    <i class="bi bi-check-circle"></i> ¡Conectado!
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block javascript %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
 const config = {
     descuentoEfectivo: parseFloat('{{ config.descuento_efectivo_porcentaje|default:0 }}'.replace(',', '.')),
@@ -452,5 +477,72 @@ document.addEventListener('DOMContentLoaded', function() {
 
     actualizarCarrito();
 });
+
+// --- LÓGICA DE ESCÁNER REMOTO (WIFI) ---
+    const btnConnectMobile = document.getElementById('btn-connect-mobile');
+    const modalConnect = new bootstrap.Modal(document.getElementById('modalConnectMobile'));
+    const qrContainer = document.getElementById('qrcode-container');
+    let pollInterval = null;
+    let currentUUID = null;
+
+    btnConnectMobile.addEventListener('click', function() {
+        // 1. Pedir una nueva sesión al servidor
+        fetch('/api/scanner/iniciar/')
+            .then(res => res.json())
+            .then(data => {
+                currentUUID = data.uuid;
+                // 2. Generar el QR con la URL de la sesión
+                qrContainer.innerHTML = ""; // Limpiar anterior
+                // La URL debe ser absoluta (con https://...)
+                const urlMovil = `${window.location.origin}/scanner-remoto/${currentUUID}/`;
+                
+                new QRCode(qrContainer, {
+                    text: urlMovil,
+                    width: 180,
+                    height: 180
+                });
+
+                modalConnect.show();
+                
+                // 3. Empezar a "escuchar" si el celular manda algo (cada 1 seg)
+                startPolling();
+            });
+    });
+
+    function startPolling() {
+        if (pollInterval) clearInterval(pollInterval);
+        
+        pollInterval = setInterval(() => {
+            if (!currentUUID) return;
+
+            fetch(`/api/scanner/check/${currentUUID}/`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.nuevo) {
+                        // ¡Llegó un código del celular!
+                        if (data.producto) {
+                            agregarAlCarrito(data.producto);
+                            // Feedback sonoro (opcional)
+                            // const audio = new Audio('/static/beep.mp3'); audio.play();
+                            
+                            // Feedback visual discreto (Toast o notificación)
+                            const toast = document.createElement('div');
+                            toast.className = 'position-fixed bottom-0 end-0 p-3 bg-success text-white rounded m-3';
+                            toast.style.zIndex = 2000;
+                            toast.innerText = `Escaneado: ${data.producto.nombre}`;
+                            document.body.appendChild(toast);
+                            setTimeout(() => toast.remove(), 2000);
+                        } else if (data.error) {
+                            alert("Producto no encontrado: " + data.error);
+                        }
+                    }
+                });
+        }, 1000); // Consulta cada 1 segundo
+    }
+
+    // Detener el polling si se cierra el modal (opcional, o dejarlo corriendo en segundo plano)
+    // document.getElementById('modalConnectMobile').addEventListener('hidden.bs.modal', function () {
+    //    if (pollInterval) clearInterval(pollInterval);
+    // });
 </script>
 {% endblock %}

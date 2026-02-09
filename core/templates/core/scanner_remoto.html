@@ -1,0 +1,117 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escáner Remoto</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    
+    <style>
+        body {
+            background-color: #111827; /* Fondo oscuro tipo App nativa */
+            color: white;
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        #reader {
+            width: 100%;
+            max-width: 400px;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 2px solid #3b82f6; /* Borde Azul Neón */
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px 20px;
+            border-radius: 50px;
+            background: rgba(255,255,255,0.1);
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status.success {
+            background: #10b981; /* Verde éxito */
+            color: white;
+            animation: pulse 0.5s ease;
+        }
+        .indicator {
+            width: 10px;
+            height: 10px;
+            background-color: #ef4444; /* Rojo desconectado */
+            border-radius: 50%;
+        }
+        .indicator.active {
+            background-color: #10b981; /* Verde conectado */
+            box-shadow: 0 0 10px #10b981;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+
+    <h3 style="margin-bottom: 20px; font-weight: 600;">Escáner WiFi</h3>
+    
+    <div id="reader"></div>
+
+    <div id="status-msg" class="status">
+        <div id="led" class="indicator active"></div>
+        <span id="msg-text">Cámara Activa</span>
+    </div>
+
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+    <script>
+        const UUID = "{{ uuid }}";
+        const statusDiv = document.getElementById('status-msg');
+        const msgText = document.getElementById('msg-text');
+        let isProcessing = false;
+
+        function onScanSuccess(decodedText, decodedResult) {
+            if (isProcessing) return; // Evitar lecturas dobles muy rápidas
+            isProcessing = true;
+
+            // Feedback visual inmediato
+            statusDiv.classList.add('success');
+            msgText.innerText = "¡Código Enviado!";
+            if (navigator.vibrate) navigator.vibrate(200);
+
+            // Enviar a la PC
+            fetch(`/api/scanner/enviar/${UUID}/`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ codigo: decodedText })
+            })
+            .then(response => response.json())
+            .then(data => {
+                setTimeout(() => {
+                    statusDiv.classList.remove('success');
+                    msgText.innerText = "Listo para escanear";
+                    isProcessing = false;
+                }, 1500);
+            })
+            .catch(err => {
+                msgText.innerText = "Error de conexión";
+                isProcessing = false;
+            });
+        }
+
+        const html5QrcodeScanner = new Html5QrcodeScanner(
+            "reader", { fps: 10, qrbox: 250 });
+        html5QrcodeScanner.render(onScanSuccess);
+    </script>
+</body>
+</html>

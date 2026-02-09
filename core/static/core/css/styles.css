@@ -1,0 +1,65 @@
+/* --- 1. TIPOGRAFÍA MODERNA --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f4f6f9; /* Gris muy suave de fondo */
+    color: #344767;
+}
+
+/* --- 2. TARJETAS FLOTANTES (Cards) --- */
+.card {
+    border: none;
+    border-radius: 1rem; /* Bordes redondeados */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); /* Sombra suave */
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    margin-bottom: 1.5rem;
+}
+
+.card:hover {
+    transform: translateY(-2px); /* Efecto de levitación al pasar el mouse */
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+    background-color: #ffffff;
+    border-bottom: 1px solid #f0f2f5;
+    border-top-left-radius: 1rem !important;
+    border-top-right-radius: 1rem !important;
+    padding: 1.5rem;
+    font-weight: 600;
+}
+
+/* --- 3. BOTONES MODERNOS --- */
+.btn {
+    border-radius: 0.5rem;
+    padding: 0.6rem 1.2rem;
+    font-weight: 500;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.btn-primary {
+    background-color: #3b82f6; /* Azul moderno */
+    border-color: #3b82f6;
+}
+.btn-primary:hover {
+    background-color: #2563eb;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.btn-success {
+    background-color: #10b981; /* Verde esmeralda */
+    border-color: #10b981;
+}
+
+/* --- 4. NAVBAR ESTILO VIDRIO --- */
+.navbar {
+    background: rgba(255, 255, 255, 0.95) !important;
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid #e5e7eb;
+}
+.navbar-brand {
+    font-weight: 700;
+    font-size: 1.5rem;
+    color: #111827 !important;
+}

@@ -13,6 +13,8 @@ from django.contrib import messages
 from django.utils import timezone
 from django.db.models import Sum, Count,Case, When, IntegerField, Min, F, Q
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.csrf import csrf_exempt
+from .models import SesionEscaneo
 from apyori import apriori
 
 # --- Imports de Python ---
@@ -1842,3 +1844,68 @@ def cambiar_sucursal_sesion(request, sucursal_id):
     
     # Volvemos a la página desde donde hizo clic (o al dashboard)
     return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
+
+# ==============================================================================
+# VISTA DE ESCANEO CON CELULAR
+# ==============================================================================
+
+# 1. PC: Crea la sesión al abrir la caja
+def iniciar_sesion_escaneo(request):
+    sesion = SesionEscaneo.objects.create()
+    return JsonResponse({'uuid': str(sesion.uuid)})
+
+# 2. PC: Pregunta "¿Hay algo nuevo?" (Polling)
+def check_scan(request, uuid):
+    try:
+        sesion = SesionEscaneo.objects.get(uuid=uuid)
+        # Si hay un código nuevo que no fue procesado
+        if not sesion.codigo_procesado and sesion.ultimo_codigo:
+            codigo = sesion.ultimo_codigo
+            sesion.codigo_procesado = True
+            sesion.save()
+            
+            # --- CORRECCIÓN CLAVE ---
+            # Devolvemos SIEMPRE el código crudo
+            respuesta = {
+                'nuevo': True, 
+                'codigo': codigo, # <--- ESTO FALTABA
+                'producto': None 
+            }
+
+            # Opcional: Si existe en TU base de datos, mandamos datos extra
+            try:
+                producto = Producto.objects.get(codigo_barras=codigo)
+                respuesta['producto'] = {
+                    'id': producto.id, 
+                    'nombre': producto.nombre, 
+                    'precio': str(producto.precio_venta), 
+                    'codigo': codigo
+                }
+            except Producto.DoesNotExist:
+                pass # No pasa nada, es un producto nuevo
+                
+            return JsonResponse(respuesta)
+                
+        return JsonResponse({'nuevo': False})
+    except SesionEscaneo.DoesNotExist:
+        return JsonResponse({'error': 'Sesión inválida'}, status=404)
+
+# 3. CELULAR: Envía el código que leyó la cámara
+@csrf_exempt
+def enviar_codigo_remoto(request, uuid):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        codigo = data.get('codigo')
+        try:
+            sesion = SesionEscaneo.objects.get(uuid=uuid)
+            sesion.ultimo_codigo = codigo
+            sesion.codigo_procesado = False # Avisamos que hay algo nuevo sin leer
+            sesion.save()
+            return JsonResponse({'success': True})
+        except SesionEscaneo.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Sesión no existe'})
+    return JsonResponse({'success': False})
+
+# 4. CELULAR: La página que ve el empleado en el teléfono
+def pantalla_scanner_remoto(request, uuid):
+    return render(request, 'core/scanner_remoto.html', {'uuid': uuid})

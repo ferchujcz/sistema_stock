@@ -71,4 +71,10 @@ urlpatterns = [
     # --- VISTAS API ---
     path('api/buscar-productos/', views.buscar_productos, name='buscar_productos'),
     path('api/buscar-por-codigo/', views.buscar_producto_por_codigo, name='buscar_por_codigo'),
+
+    # SISTEMA DE ESCÁNER REMOTO
+    path('api/scanner/iniciar/', views.iniciar_sesion_escaneo, name='iniciar_sesion_escaneo'),
+    path('api/scanner/check/<uuid:uuid>/', views.check_scan, name='check_scan'),
+    path('api/scanner/enviar/<uuid:uuid>/', views.enviar_codigo_remoto, name='enviar_codigo_remoto'),
+    path('scanner-remoto/<uuid:uuid>/', views.pantalla_scanner_remoto, name='pantalla_scanner_remoto'),
 ]

@@ -1,0 +1,196 @@
+<style>
+    /* Usamos !important para que NADA pueda cambiar el tamaño */
+    #qrcode-container { 
+        width: 200px !important; 
+        height: 200px !important; 
+        margin: 0 auto; 
+        background: #f8f9fa; 
+        border: 2px solid #e9ecef;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        flex-shrink: 0; /* Evita que Flexbox lo aplaste */
+    }
+    
+    /* Evita que la imagen del QR rompa el contenedor */
+    #qrcode-container img {
+        max-width: 100% !important;
+        height: auto !important;
+    }
+
+    #reader-local { width: 100%; min-height: 250px; background: #000; }
+    .status-dot { height: 10px; width: 10px; background-color: #bbb; border-radius: 50%; display: inline-block; margin-right: 5px;}
+    .status-dot.online { background-color: #10b981; box-shadow: 0 0 8px #10b981; }
+</style>
+
+<div class="d-flex gap-2 align-items-center">
+    <button type="button" class="btn btn-outline-primary" id="btn-remote-scan" title="Usar celular">
+        <i class="bi bi-phone"></i> <span class="d-none d-md-inline">Modo Remoto</span>
+        <span id="indicator-remote" class="status-dot ms-1"></span>
+    </button>
+
+    <button type="button" class="btn btn-outline-secondary" id="btn-local-scan" title="Usar webcam">
+        <i class="bi bi-camera"></i> <span class="d-none d-md-inline">Webcam</span>
+    </button>
+</div>
+
+<div class="modal fade" id="modalScannerRemoto" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content text-center">
+            <div class="modal-header border-0 pb-0"><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body">
+                <h6 class="fw-bold mb-3">Escaneá para conectar</h6>
+                
+                <div id="qrcode-container"></div>
+                
+                <p class="small text-muted mt-2 mb-1">El celular quedará vinculado.</p>
+                <button class="btn btn-sm btn-link text-danger text-decoration-none" id="btn-desvincular">Desconectar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalScannerLocal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title">Escanear Código</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="reader-local"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
+<script>
+    window.scannerInstance = {
+        pollInterval: null,
+        localScanner: null,
+        uuid: sessionStorage.getItem('scanner_uuid') || null
+    };
+
+    function iniciarComponenteScanner(callbackExito) {
+        const btnRemote = document.getElementById('btn-remote-scan');
+        const btnLocal = document.getElementById('btn-local-scan');
+        const btnDesvincular = document.getElementById('btn-desvincular');
+        const indicator = document.getElementById('indicator-remote');
+        
+        // RECUPERAR SESIÓN GUARDADA
+        if (window.scannerInstance.uuid) {
+            startPolling(window.scannerInstance.uuid, callbackExito);
+            indicator.classList.add('online');
+            btnRemote.classList.replace('btn-outline-primary', 'btn-primary');
+        }
+
+        btnRemote.addEventListener('click', function() {
+            const modal = new bootstrap.Modal(document.getElementById('modalScannerRemoto'));
+            const qrContainer = document.getElementById('qrcode-container');
+            
+            if (window.scannerInstance.uuid) {
+                qrContainer.innerHTML = '<div class="text-success"><i class="bi bi-wifi" style="font-size: 3rem;"></i><br><b>Conectado</b></div>';
+                modal.show();
+                return;
+            }
+
+            qrContainer.innerHTML = ""; // Limpiar antes de pedir
+            
+            fetch('/api/scanner/iniciar/')
+                .then(res => res.json())
+                .then(data => {
+                    window.scannerInstance.uuid = data.uuid;
+                    sessionStorage.setItem('scanner_uuid', data.uuid);
+                    
+                    const urlMovil = `${window.location.origin}/scanner-remoto/${data.uuid}/`;
+                    
+                    // Generar QR
+                    new QRCode(qrContainer, { 
+                        text: urlMovil, 
+                        width: 190, // Un poco menos que el contenedor (200)
+                        height: 190, 
+                        correctLevel: QRCode.CorrectLevel.L 
+                    });
+                    
+                    modal.show();
+                    startPolling(data.uuid, callbackExito);
+                });
+        });
+
+        btnDesvincular.addEventListener('click', function() {
+            sessionStorage.removeItem('scanner_uuid');
+            window.scannerInstance.uuid = null;
+            if (window.scannerInstance.pollInterval) clearInterval(window.scannerInstance.pollInterval);
+            indicator.classList.remove('online');
+            btnRemote.classList.replace('btn-primary', 'btn-outline-primary');
+            bootstrap.Modal.getInstance(document.getElementById('modalScannerRemoto')).hide();
+        });
+
+        // MODO LOCAL
+        btnLocal.addEventListener('click', function() {
+            const modalLocal = new bootstrap.Modal(document.getElementById('modalScannerLocal'));
+            modalLocal.show();
+            setTimeout(() => {
+                if (!window.scannerInstance.localScanner) {
+                    window.scannerInstance.localScanner = new Html5QrcodeScanner("reader-local", { fps: 10, qrbox: 250 });
+                }
+                window.scannerInstance.localScanner.render((decodedText) => {
+                    callbackExito(decodedText);
+                    modalLocal.hide();
+                    window.scannerInstance.localScanner.clear();
+                });
+            }, 500);
+        });
+        
+        document.getElementById('modalScannerLocal').addEventListener('hidden.bs.modal', function () {
+             if (window.scannerInstance.localScanner) window.scannerInstance.localScanner.clear();
+        });
+    }
+
+    function startPolling(uuid, callback) {
+        if (window.scannerInstance.pollInterval) clearInterval(window.scannerInstance.pollInterval);
+        
+        const indicator = document.getElementById('indicator-remote');
+        indicator.classList.add('online');
+
+        window.scannerInstance.pollInterval = setInterval(() => {
+            fetch(`/api/scanner/check/${uuid}/`)
+                .then(res => res.json())
+                .then(scanData => {
+                    if (scanData.nuevo) {
+                        // --- CORRECCIÓN JS: Usamos 'codigo' O 'producto.codigo' ---
+                        let codigoFinal = scanData.codigo;
+                        
+                        if (!codigoFinal && scanData.producto) {
+                            codigoFinal = scanData.producto.codigo;
+                        }
+
+                        if (codigoFinal) {
+                            console.log("Recibido:", codigoFinal);
+                            callback(codigoFinal); 
+                            mostrarToast("Escaneado: " + codigoFinal);
+                        } else {
+                            console.warn("Recibido evento nuevo pero sin código", scanData);
+                        }
+                    }
+                })
+                .catch(err => console.error("Polling...", err));
+        }, 1000);
+    }
+
+    function mostrarToast(msg) {
+        let box = document.getElementById('toast-box');
+        if(!box) {
+            box = document.createElement('div');
+            box.id = 'toast-box';
+            box.style = "position:fixed; bottom:20px; right:20px; background:#22c55e; color:white; padding:10px 20px; border-radius:5px; z-index:9999; box-shadow: 0 4px 6px rgba(0,0,0,0.1);";
+            document.body.appendChild(box);
+        }
+        box.innerText = msg;
+        box.style.display = 'block';
+        setTimeout(() => box.style.display = 'none', 3000);
+    }
+</script>
