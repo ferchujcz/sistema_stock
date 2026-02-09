@@ -1,65 +1,84 @@
-/* --- 1. TIPOGRAFÍA MODERNA --- */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+/* --- 1. TIPOGRAFÍA Y BASE --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
 
 body {
     font-family: 'Inter', sans-serif;
-    background-color: #f4f6f9; /* Gris muy suave de fondo */
-    color: #344767;
+    background-color: #f4f6f9;
+    color: #1a1f36; /* Texto oscuro fuerte para contraste */
 }
 
-/* --- 2. TARJETAS FLOTANTES (Cards) --- */
+/* --- 2. ARREGLO DE NAVBAR (TEXTO INVISIBLE) --- */
+.navbar {
+    background-color: #ffffff !important;
+    border-bottom: 1px solid #e5e7eb;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+/* Forzamos color oscuro en los enlaces del menú */
+.navbar-light .navbar-nav .nav-link {
+    color: #333333 !important;
+    font-weight: 500;
+}
+.navbar-light .navbar-nav .nav-link:hover {
+    color: #3b82f6 !important; /* Azul al pasar el mouse */
+}
+.navbar-brand {
+    color: #000000 !important;
+    font-weight: 700;
+}
+
+/* --- 3. ARREGLO DE TARJETAS (ELIMINAMOS EL TEMBLEQUE) --- */
 .card {
-    border: none;
-    border-radius: 1rem; /* Bordes redondeados */
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); /* Sombra suave */
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    margin-bottom: 1.5rem;
-}
-
-.card:hover {
-    transform: translateY(-2px); /* Efecto de levitación al pasar el mouse */
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb; /* Borde sutil */
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    /* ¡ELIMINAMOS EL TRANSFORM Y TRANSITION AQUÍ PARA QUE NO TIEMBLE! */
 }
 
 .card-header {
-    background-color: #ffffff;
-    border-bottom: 1px solid #f0f2f5;
-    border-top-left-radius: 1rem !important;
-    border-top-right-radius: 1rem !important;
-    padding: 1.5rem;
-    font-weight: 600;
-}
-
-/* --- 3. BOTONES MODERNOS --- */
-.btn {
-    border-radius: 0.5rem;
-    padding: 0.6rem 1.2rem;
-    font-weight: 500;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-
-.btn-primary {
-    background-color: #3b82f6; /* Azul moderno */
-    border-color: #3b82f6;
-}
-.btn-primary:hover {
-    background-color: #2563eb;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-}
-
-.btn-success {
-    background-color: #10b981; /* Verde esmeralda */
-    border-color: #10b981;
-}
-
-/* --- 4. NAVBAR ESTILO VIDRIO --- */
-.navbar {
-    background: rgba(255, 255, 255, 0.95) !important;
-    backdrop-filter: blur(10px);
+    background-color: #f8f9fa;
     border-bottom: 1px solid #e5e7eb;
+    font-weight: 600;
+    color: #111827;
 }
-.navbar-brand {
-    font-weight: 700;
-    font-size: 1.5rem;
-    color: #111827 !important;
+
+/* Solo animamos tarjetas específicas del dashboard (Dashboard Cards) */
+.dashboard-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* --- 4. ARREGLO DE FORMULARIOS (TEXTO INVISIBLE EN INPUTS) --- */
+.form-control, .form-select {
+    background-color: #ffffff !important;
+    color: #000000 !important; /* Texto negro forzado */
+    border: 1px solid #d1d5db;
+    padding: 0.6rem 1rem;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    color: #000000 !important;
+}
+
+.form-label {
+    color: #374151; /* Gris oscuro para etiquetas */
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+/* --- 5. ARREGLO DEL MODAL QR --- */
+.modal-content {
+    background-color: #ffffff !important; /* Fondo blanco sólido */
+    border: none;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Asegura que el contenedor del QR no colapse */
+#qrcode-container {
+    background-color: #ffffff !important;
+    z-index: 1055 !important; /* Encima de todo */
 }
