@@ -1,0 +1,49 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6">
+        <div class="card shadow">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    {% if form.instance.pk %}
+                        ✏️ Editar Sucursal
+                    {% else %}
+                        ➕ Nueva Sucursal
+                    {% endif %}
+                </h4>
+            </div>
+            <div class="card-body p-4">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Nombre del Local</label>
+                        <input type="text" name="nombre" class="form-control" 
+                               value="{{ form.nombre.value|default_if_none:'' }}" 
+                               placeholder="Ej: Local Centro, Depósito Norte...">
+                        {% if form.nombre.errors %}
+                            <div class="text-danger small">{{ form.nombre.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Dirección</label>
+                        <input type="text" name="direccion" class="form-control" 
+                               value="{{ form.direccion.value|default_if_none:'' }}" 
+                               placeholder="Calle Falsa 123">
+                        {% if form.direccion.errors %}
+                            <div class="text-danger small">{{ form.direccion.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-success btn-lg">Guardar Datos</button>
+                        <a href="{% url 'listar_sucursales' %}" class="btn btn-outline-secondary">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

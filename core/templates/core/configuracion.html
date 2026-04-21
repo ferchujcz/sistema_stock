@@ -1,0 +1,58 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="container" style="max-width: 800px;">
+    <h2 class="mb-4 fw-bold"><i class="bi bi-sliders"></i> Configuración del Sistema</h2>
+
+    <form method="post" class="card shadow-sm">
+        {% csrf_token %}
+        <div class="card-body p-4">
+            
+            <h5 class="text-primary mb-3">Identidad del Negocio</h5>
+            <div class="mb-4">
+                <label class="form-label fw-bold">Nombre del Kiosco/Local</label>
+                <input type="text" name="nombre_negocio" class="form-control form-control-lg" 
+                       value="{{ config.nombre_negocio|default:'Mi Kiosco' }}" placeholder="Ej: Kiosco Pepe">
+                <div class="form-text">Este nombre aparecerá en la barra lateral y los tickets.</div>
+            </div>
+            
+            <hr>
+
+            <h5 class="text-primary mb-3">Reglas de Cobro Automático</h5>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold text-success">Descuento Efectivo (%)</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-success text-white"><i class="bi bi-arrow-down"></i></span>
+                        <input type="number" step="0.01" name="descuento_efectivo" class="form-control" 
+                               value="{{ config.descuento_efectivo_porcentaje|stringformat:'.2f' }}">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold text-primary">Recargo Débito/QR (%)</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-primary text-white"><i class="bi bi-qr-code"></i></span>
+                        <input type="number" step="0.01" name="recargo_qr" class="form-control" 
+                               value="{{ config.recargo_qr_porcentaje|stringformat:'.2f' }}">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold text-danger">Recargo Crédito (%)</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-danger text-white"><i class="bi bi-credit-card"></i></span>
+                        <input type="number" step="0.01" name="recargo_credito" class="form-control" 
+                               value="{{ config.recargo_credito_porcentaje|stringformat:'.2f' }}">
+                    </div>
+                </div>
+            </div>
+            <div class="alert alert-info mt-3 small">
+                <i class="bi bi-info-circle"></i> Estos porcentajes se aplicarán automáticamente al seleccionar el método de pago en la pantalla de "Nueva Venta". Poner 0 para desactivar.
+            </div>
+
+            <div class="d-grid mt-4">
+                <button type="submit" class="btn btn-primary btn-lg">Guardar Configuración</button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}

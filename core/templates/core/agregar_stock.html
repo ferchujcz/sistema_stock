@@ -1,220 +1,103 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
+<div class="container mt-4">
+    <div class="text-center mb-5">
+        <h2 class="fw-bold mb-3">¿Cómo querés ingresar mercadería hoy?</h2>
+        <div class="d-flex justify-content-center gap-3 flex-wrap">
+            
+            <button class="btn btn-outline-primary active" disabled>
+                <i class="bi bi-upc-scan fs-4 d-block"></i> Carga Manual (1 a 1)
+            </button>
 
-<style>
-    #reader { width: 100%; margin-bottom: 15px; display: none; border: 2px solid #007bff; border-radius: 8px; }
-    
-    /* Ocultar flechas en inputs numéricos */
-    input[type=number]::-webkit-outer-spin-button,
-    input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    input[type=number] { -moz-appearance: textfield; }
-</style>
+            <a href="{% url 'importar_stock' %}" class="btn btn-outline-success hover-shadow">
+                <i class="bi bi-file-earmark-spreadsheet fs-4 d-block"></i> Importar Excel
+            </a>
 
-<div class="row justify-content-center">
-    <div class="col-md-8 col-lg-6">
-        <div class="card shadow-sm">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0">Añadir Nuevo Stock</h4>
-            </div>
-            <div class="card-body">
-                <form method="post" id="form-agregar-stock">
-                    {% csrf_token %}
+            <a href="{% url 'cargar_factura_ocr' %}" class="btn btn-outline-info hover-shadow text-dark">
+                <i class="bi bi-camera fs-4 d-block"></i> Foto / Factura
+            </a>
+        </div>
+    </div>
 
-                    <div class="mb-3">
-                        <label for="buscar-producto" class="form-label">Escanear Código o Buscar Producto</label>
-                        <div class="input-group">
-                            <button class="btn btn-outline-primary" type="button" id="btn-scan-camera" title="Escanear con Cámara">
-                                <i class="bi bi-camera-fill"></i>
-                            </button>
-                            
-                            <span class="input-group-text"><i class="bi bi-search"></i></span>
-                            <input type="text" id="buscar-producto" class="form-control form-control-lg" placeholder="Escanea o escribe..." autofocus>
-                        </div>
-                        
-                        <div id="reader"></div>
-                        <div class="text-center mt-2" id="btn-stop-container" style="display: none;">
-                            <button class="btn btn-danger btn-sm" type="button" id="btn-stop-camera">Detener Cámara</button>
-                        </div>
+    <hr>
 
-                        <div id="resultados-busqueda" class="list-group position-absolute" style="z-index: 1000; width: 95%;"></div>
-                        <input type="hidden" name="producto" id="producto_id" required>
-                    </div>
+    <div class="d-flex justify-content-between align-items-center mb-4 mt-4">
+        <h4><i class="bi bi-box-seam"></i> Carga Manual / Buscador</h4>
+    </div>
+
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body"> 
+            <label class="form-label fw-bold">Buscar producto para sumar stock:</label>
+            <form method="get" action="" id="form-buscador">
+                <div class="input-group input-group-lg">
+                    <input type="text" name="q" id="buscador-stock" 
+                           class="form-control" 
+                           placeholder="Escaneá el código o escribí el nombre..." 
+                           autofocus>
                     
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="cantidad" class="form-label">Cantidad</label>
-                            <input type="number" name="cantidad" id="cantidad" class="form-control" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="fecha_vencimiento" class="form-label">Fecha de Vencimiento</label>
-                            <input type="date" name="fecha_vencimiento" id="fecha_vencimiento" class="form-control">
-                        </div>
-                    </div>
+                    {% include 'core/includes/scanner_component.html' %}
                     
-                    <div class="mb-4">
-                        <label for="ubicacion" class="form-label">Ubicación</label>
-                        <select name="ubicacion" id="ubicacion" class="form-select">
-                            <option value="deposito" selected>Depósito</option>
-                            <option value="gondola">Góndola</option>
-                        </select>
-                    </div>
+                    <button class="btn btn-primary" type="submit">
+                        <i class="bi bi-search"></i> Buscar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-                    <hr>
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
-                        <a href="{% url 'stock_detalle' %}" class="btn btn-secondary btn-lg">Cancelar</a>
-                        <button type="submit" class="btn btn-primary btn-lg">
-                            <i class="bi bi-plus-circle"></i> Guardar y Añadir Siguiente
-                        </button>
-                    </div>
-                </form>
+    {% if productos %}
+    <div class="card shadow">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">Producto</th>
+                            <th>Código</th>
+                            <th>Stock Actual</th>
+                            <th>Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in productos %}
+                        <tr>
+                            <td class="ps-4 fw-bold">{{ p.nombre }}</td>
+                            <td><span class="badge bg-secondary">{{ p.codigo_barras }}</span></td>
+                            <td>{{ p.lotes.count }} lotes</td> <td>
+                                <a href="{% url 'editar_stock' p.id %}" class="btn btn-sm btn-success">
+                                    <i class="bi bi-plus-lg"></i> Sumar Stock
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
+    {% elif request.GET.q %}
+        <div class="alert alert-warning text-center">
+            No se encontró ningún producto con "{{ request.GET.q }}". 
+            <a href="{% url 'crear_producto' %}" class="fw-bold">¿Crear nuevo?</a>
+        </div>
+    {% endif %}
 </div>
+
+<style>
+    .hover-shadow:hover { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: all 0.2s; }
+</style>
 {% endblock %}
 
 {% block javascript %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Referencias DOM
-    const buscarInput = document.getElementById('buscar-producto');
-    const resultadosDiv = document.getElementById('resultados-busqueda');
-    const productoIdInput = document.getElementById('producto_id');
-    const cantidadInput = document.getElementById('cantidad');
-    const form = document.getElementById('form-agregar-stock');
-    
-    // Referencias CÁMARA
-    const btnScanCamera = document.getElementById('btn-scan-camera');
-    const btnStopCamera = document.getElementById('btn-stop-camera');
-    const btnStopContainer = document.getElementById('btn-stop-container');
-    const readerDiv = document.getElementById('reader');
-    let html5QrcodeScanner = null;
-
-    // --- LÓGICA DE CÁMARA ---
-    btnScanCamera.addEventListener('click', function() {
-        readerDiv.style.display = 'block';
-        btnStopContainer.style.display = 'block';
-        
-        html5QrcodeScanner = new Html5Qrcode("reader");
-        // Configuración para códigos de barras (rectangular)
-        const config = { fps: 10, qrbox: { width: 250, height: 150 } }; 
-        
-        html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
-        .catch(err => {
-            console.error(err);
-            alert("Error al iniciar cámara. Asegurate de estar en HTTPS.");
-            readerDiv.style.display = 'none';
-            btnStopContainer.style.display = 'none';
+    document.addEventListener('DOMContentLoaded', function() {
+        iniciarScanner(function(codigo) {
+            if (!codigo) return;
+            const buscador = document.getElementById('buscador-stock');
+            buscador.value = codigo;
+            document.getElementById('form-buscador').submit(); 
         });
     });
-
-    function onScanSuccess(decodedText, decodedResult) {
-        // 1. Detener cámara
-        html5QrcodeScanner.stop().then((ignore) => {
-            readerDiv.style.display = 'none';
-            btnStopContainer.style.display = 'none';
-        }).catch((err) => { console.log(err); });
-
-        // 2. Buscar el producto escaneado
-        buscarInput.value = decodedText;
-        buscarPorCodigo(decodedText);
-        
-        // Feedback vibración
-        if (navigator.vibrate) navigator.vibrate(200);
-    }
-
-    btnStopCamera.addEventListener('click', function() {
-        if (html5QrcodeScanner) {
-            html5QrcodeScanner.stop().then((ignore) => {
-                readerDiv.style.display = 'none';
-                btnStopContainer.style.display = 'none';
-            }).catch((err) => { console.log(err); });
-        }
-    });
-
-
-    // --- LÓGICA DE BÚSQUEDA NORMAL ---
-    function seleccionarProducto(producto) {
-        buscarInput.value = producto.nombre;
-        productoIdInput.value = producto.id;
-        resultadosDiv.innerHTML = '';
-        buscarInput.classList.remove('is-invalid');
-        buscarInput.classList.add('is-valid');
-        cantidadInput.focus();
-        cantidadInput.select();
-    }
-
-    buscarInput.addEventListener('keydown', function(event) {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            const codigo = buscarInput.value.trim();
-            if (codigo) {
-                buscarPorCodigo(codigo);
-            }
-        }
-    });
-
-    function buscarPorCodigo(codigo) {
-        fetch(`/api/buscar-por-codigo/?codigo=${codigo}`)
-            .then(response => {
-                if (!response.ok) { 
-                    buscarInput.classList.add('is-invalid');
-                    resultadosDiv.innerHTML = '';
-                    throw new Error('Producto no encontrado'); 
-                }
-                return response.json();
-            })
-            .then(producto => {
-                seleccionarProducto(producto);
-            })
-            .catch(error => {
-                console.log(error);
-            });
-    }
-
-    buscarInput.addEventListener('input', function(event) {
-        const query = buscarInput.value.trim();
-        productoIdInput.value = ''; 
-        buscarInput.classList.remove('is-valid');
-        buscarInput.classList.remove('is-invalid');
-
-        if (/^\d+$/.test(query) && query.length > 6) {
-            resultadosDiv.innerHTML = '';
-            return; 
-        }
-
-        if (query.length < 2) {
-            resultadosDiv.innerHTML = '';
-            return;
-        }
-
-        fetch(`/api/buscar-productos/?term=${query}`)
-            .then(response => response.json())
-            .then(data => {
-                resultadosDiv.innerHTML = '';
-                if (data.length === 0) {
-                    resultadosDiv.innerHTML = '<div class="list-group-item text-muted">No se encontraron productos</div>';
-                }
-                data.forEach(producto => {
-                    const div = document.createElement('div');
-                    div.innerHTML = producto.nombre;
-                    div.classList.add('list-group-item', 'list-group-item-action');
-                    div.style.cursor = 'pointer';
-                    div.onclick = () => seleccionarProducto(producto);
-                    resultadosDiv.appendChild(div);
-                });
-            });
-    });
-
-    form.addEventListener('submit', function(event) {
-        if (!productoIdInput.value) {
-            event.preventDefault();
-            alert('Por favor, selecciona un producto válido de la lista o escanéalo correctamente.');
-            buscarInput.focus();
-            buscarInput.classList.add('is-invalid');
-        }
-    });
-});
 </script>
 {% endblock %}

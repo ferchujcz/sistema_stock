@@ -1,44 +1,84 @@
 {% extends 'core/base.html' %}
+
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8 col-lg-6">
-        <div class="card shadow-sm">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0">Cierre de Turno - {{ sucursal_actual.nombre|default:"Mi Sucursal" }}</h4>
+<div class="container" style="max-width: 900px;">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-safe2-fill"></i> Cierre de Turno / Caja</h2>
+        <span class="badge bg-secondary fs-6">{{ now|date:"d/m/Y H:i" }}</span>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-7">
+            <div class="card shadow-sm h-100">
+                <div class="card-header fw-bold border-bottom">
+                    Movimientos del Sistema
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">Desde el último cierre: <strong>{{ fecha_inicio_turno|date:"d/m/Y H:i" }}</strong></p>
+                    
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span>(+) Ventas Efectivo</span>
+                            <span class="fw-bold text-success">${{ total_efectivo|floatformat:2 }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span>(+) Cobros Cta. Cte. (Clientes)</span>
+                            <span class="fw-bold text-success">${{ total_cobros_fiado|floatformat:2 }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span>(-) Pagos a Proveedores (Efectivo)</span>
+                            <span class="fw-bold text-danger">-${{ total_pagos_proveedor|floatformat:2 }}</span>
+                        </li>
+                        
+                        <li class="list-group-item d-flex justify-content-between align-items-center mt-3 py-3 border-top border-bottom">
+                            <span class="fw-bold fs-5">= EFECTIVO ESPERADO</span>
+                            <span class="text-primary fs-4 fw-bold">${{ caja_calculada|floatformat:2 }}</span>
+                        </li>
+                    </ul>
+
+                    <hr class="my-4">
+                    
+                    <h6 class="text-muted mb-3"><i class="bi bi-credit-card"></i> Otros Medios (Ya acreditados)</h6>
+                    <div class="d-flex justify-content-between p-3 rounded border">
+                        <span>Tarjetas: <strong class="text-info">${{ total_tarjeta|floatformat:2 }}</strong></span>
+                        <div class="vr"></div>
+                        <span>QR/Digital: <strong class="text-info">${{ total_qr|floatformat:2 }}</strong></span>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-                <p class="text-muted">Resumen de movimientos desde el último cierre ({{ fecha_inicio_turno }})</p>
+        </div>
 
-                <h5 class="text-success">Ingresos en Efectivo</h5>
-                <ul class="list-group mb-3">
-                    <li class="list-group-item d-flex justify-content-between">Ventas en Efectivo: <span>${{ total_efectivo|floatformat:2 }}</span></li>
-                    <li class="list-group-item d-flex justify-content-between">Cobros Cta. Cte.: <span>${{ total_cobros_fiado|floatformat:2 }}</span></li>
-                </ul>
+        <div class="col-md-5">
+            <div class="card shadow border-primary h-100">
+                <div class="card-header bg-primary text-white fw-bold">
+                    <i class="bi bi-cash-stack"></i> Arqueo de Caja
+                </div>
+                <div class="card-body d-flex flex-column justify-content-center p-4">
+                    <form method="post" id="form-cierre">
+                        {% csrf_token %}
+                        <div class="mb-4 text-center">
+                            <label class="form-label h5 mb-3">¿Cuánto dinero contaste?</label>
+                            <div class="input-group input-group-lg">
+                                <span class="input-group-text bg-transparent border-end-0 text-muted">$</span>
+                                <input type="number" step="0.01" name="monto_en_caja_declarado" 
+                                       class="form-control fw-bold text-center border-start-0" 
+                                       placeholder="0.00" required style="font-size: 2rem;">
+                            </div>
+                            <div class="form-text mt-2 opacity-75">Contá solo los billetes y monedas físicos.</div>
+                        </div>
 
-                <h5 class="text-danger">Salidas en Efectivo</h5>
-                <ul class="list-group mb-3">
-                    <li class="list-group-item d-flex justify-content-between">Pagos a Proveedores: <span>-${{ total_pagos_proveedor|floatformat:2 }}</span></li>
-                </ul>
+                        <div class="alert alert-warning small d-flex align-items-center">
+                            <i class="bi bi-exclamation-triangle fs-4 me-3"></i>
+                            <div>
+                                Al cerrar el turno, se reiniciarán los contadores de caja para el próximo turno.
+                            </div>
+                        </div>
 
-                <h5 class="text-info">Otros Movimientos (No afectan caja)</h5>
-                <ul class="list-group mb-3">
-                    <li class="list-group-item d-flex justify-content-between">Ventas (Tarjeta/QR): <span>${{ total_tarjeta|add:total_qr|floatformat:2 }}</span></li>
-                </ul>
-
-                <hr>
-                <h4>Total en Caja (Calculado): <span class="text-primary">${{ caja_calculada|floatformat:2 }}</span></h4>
-                <hr>
-
-                <form method="post">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="monto_en_caja_declarado" class="form-label fs-5">¿Cuánto dinero contaste en la caja?</label>
-                        <input type="number" step="0.01" name="monto_en_caja_declarado" id="monto_en_caja_declarado" class="form-control form-control-lg" required>
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-danger btn-lg">Confirmar y Cerrar Turno</button>
-                    </div>
-                </form>
+                        <button type="submit" class="btn btn-primary w-100 btn-lg mt-auto py-3 fw-bold shadow-sm">
+                            <i class="bi bi-lock-fill me-2"></i> CERRAR TURNO AHORA
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>

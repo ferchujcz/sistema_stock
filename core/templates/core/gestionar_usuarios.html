@@ -1,0 +1,88 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-people-fill"></i> Equipo de {{ negocio.nombre }}</h2>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card shadow-sm border-primary">
+                <div class="card-header bg-primary text-white fw-bold">
+                    <i class="bi bi-person-plus"></i> Nuevo Empleado
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Nombre de Usuario (Login)</label>
+                            <input type="text" name="username" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Contraseña</label>
+                            <input type="password" name="password" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Rol</label>
+                            <select name="rol" class="form-select" required>
+                                <option value="empleado">Cajero / Empleado</option>
+                                <option value="admin">Administrador (Acceso total)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Sucursal Asignada</label>
+                            <select name="sucursal_id" class="form-select">
+                                <option value="">--- Sin sucursal (Gerencia) ---</option>
+                                {% for s in sucursales %}
+                                <option value="{{ s.id }}">{{ s.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">Crear Usuario</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card shadow-sm">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Usuario</th>
+                                <th>Rol</th>
+                                <th>Sucursal</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for perfil in usuarios %}
+                            <tr>
+                                <td class="fw-bold"><i class="bi bi-person-circle text-muted me-2"></i>{{ perfil.usuario.username }}</td>
+                                <td>
+                                    {% if perfil.rol == 'admin' %}
+                                        <span class="badge bg-danger">Administrador</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Empleado</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ perfil.sucursal.nombre|default:"Todas" }}</td>
+                                <td>
+                                    {% if perfil.usuario.is_active %}
+                                        <span class="text-success"><i class="bi bi-check-circle-fill"></i> Activo</span>
+                                    {% else %}
+                                        <span class="text-danger">Bloqueado</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

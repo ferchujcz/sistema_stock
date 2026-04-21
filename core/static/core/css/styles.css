@@ -1,84 +1,361 @@
-/* --- 1. TIPOGRAFÍA Y BASE --- */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+:root {
+    --main-bg: #f5f7fb; /* Gris muy clarito y moderno para fondo */
+    --sidebar-bg: #0f172a; /* Azul noche profundo (Slack/Discord style) */
+    --sidebar-text: #cbd5e1;
+    --primary-color: #3b82f6;
+    --card-bg: #ffffff;
+    --text-color: #1e293b;
+}
+
+/* --- MODO OSCURO AUTOMÁTICO (Gracias a Bootstrap 5.3) --- */
+[data-bs-theme="dark"] {
+    --main-bg: #0f172a;
+    --sidebar-bg: #1e293b;
+    --card-bg: #1e293b;
+    --text-color: #e2e8f0;
+}
 
 body {
     font-family: 'Inter', sans-serif;
-    background-color: #f4f6f9;
-    color: #1a1f36; /* Texto oscuro fuerte para contraste */
+    background-color: var(--main-bg);
+    color: var(--text-color);
+    overflow-x: hidden;
 }
 
-/* --- 2. ARREGLO DE NAVBAR (TEXTO INVISIBLE) --- */
-.navbar {
-    background-color: #ffffff !important;
-    border-bottom: 1px solid #e5e7eb;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+/* --- SIDEBAR (Menú Lateral) --- */
+#wrapper {
+    overflow-x: hidden;
+    display: flex;
+    width: 100%;
+    align-items: stretch;
 }
 
-/* Forzamos color oscuro en los enlaces del menú */
-.navbar-light .navbar-nav .nav-link {
-    color: #333333 !important;
-    font-weight: 500;
-}
-.navbar-light .navbar-nav .nav-link:hover {
-    color: #3b82f6 !important; /* Azul al pasar el mouse */
-}
-.navbar-brand {
-    color: #000000 !important;
-    font-weight: 700;
+#sidebar-wrapper {
+    min-height: 100vh;
+    width: 17rem; /* Ancho del menú */
+    margin-left: 0;
+    transition: margin 0.25s ease-out;
+    background-color: var(--sidebar-bg);
+    color: var(--sidebar-text);
+    position: fixed;
+    z-index: 1000;
 }
 
-/* --- 3. ARREGLO DE TARJETAS (ELIMINAMOS EL TEMBLEQUE) --- */
-.card {
-    background-color: #ffffff;
-    border: 1px solid #e5e7eb; /* Borde sutil */
-    border-radius: 0.75rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    /* ¡ELIMINAMOS EL TRANSFORM Y TRANSITION AQUÍ PARA QUE NO TIEMBLE! */
+#sidebar-wrapper .sidebar-heading {
+    padding: 0.875rem 1.25rem;
+    font-size: 1.2rem;
+    color: #fff;
 }
 
-.card-header {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #e5e7eb;
-    font-weight: 600;
-    color: #111827;
-}
-
-/* Solo animamos tarjetas específicas del dashboard (Dashboard Cards) */
-.dashboard-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-/* --- 4. ARREGLO DE FORMULARIOS (TEXTO INVISIBLE EN INPUTS) --- */
-.form-control, .form-select {
-    background-color: #ffffff !important;
-    color: #000000 !important; /* Texto negro forzado */
-    border: 1px solid #d1d5db;
-    padding: 0.6rem 1rem;
-}
-
-.form-control:focus, .form-select:focus {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    color: #000000 !important;
-}
-
-.form-label {
-    color: #374151; /* Gris oscuro para etiquetas */
-    font-weight: 500;
-    margin-bottom: 0.5rem;
-}
-
-/* --- 5. ARREGLO DEL MODAL QR --- */
-.modal-content {
-    background-color: #ffffff !important; /* Fondo blanco sólido */
+#sidebar-wrapper .list-group-item {
     border: none;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    padding: 15px 25px;
+    color: var(--sidebar-text);
+    background: transparent !important; /* Importante para que no quede blanco */
 }
 
-/* Asegura que el contenedor del QR no colapse */
-#qrcode-container {
-    background-color: #ffffff !important;
-    z-index: 1055 !important; /* Encima de todo */
+#sidebar-wrapper .list-group-item:hover {
+    color: #fff;
+    background-color: rgba(255,255,255,0.1) !important;
+}
+
+#sidebar-wrapper .active {
+    color: #fff;
+    background-color: var(--primary-color) !important;
+    border-right: 4px solid #60a5fa;
+}
+
+/* Submenús */
+.sub-item {
+    display: block;
+    padding: 10px 10px 10px 50px;
+    color: #94a3b8;
+    text-decoration: none;
+    font-size: 0.9em;
+    transition: 0.3s;
+}
+.sub-item:hover { color: #fff; }
+
+/* Contenido Principal */
+#page-content-wrapper {
+    width: 100%;
+    margin-left: 17rem; /* Mismo ancho que el sidebar */
+    transition: margin 0.25s ease-out;
+}
+
+/* Toggle del Sidebar (Para ocultarlo) */
+#wrapper.toggled #sidebar-wrapper { margin-left: -17rem; }
+#wrapper.toggled #page-content-wrapper { margin-left: 0; }
+
+/* --- ARREGLO DE CHECKBOXES (EL PEDIDO DEL CUADRADO AZUL) --- */
+.form-check-input {
+    width: 1.3em;
+    height: 1.3em;
+    margin-top: 0.1em;
+    border: 2px solid #94a3b8; /* Borde gris visible */
+    cursor: pointer;
+}
+
+.form-check-input:checked {
+    background-color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+    /* Esto fuerza el tilde blanco */
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10l3 3l6-6'/%3e%3c/svg%3e") !important;
+}
+
+/* --- TARJETAS PROFESIONALES --- */
+.card {
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    background-color: var(--card-bg);
+}
+
+/* Ajustes Responsive */
+@media (max-width: 768px) {
+    #sidebar-wrapper { margin-left: -17rem; }
+    #page-content-wrapper { margin-left: 0; }
+    #wrapper.toggled #sidebar-wrapper { margin-left: 0; }
+    #wrapper.toggled #page-content-wrapper { margin-left: 0; position: fixed; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999;}
+}
+/* --- NAVBAR QUE RESPETA MODO OSCURO --- */
+.navbar {
+    background-color: var(--card-bg) !important; /* Usa el color de la tarjeta (Blanco o Azul Oscuro) */
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    transition: background-color 0.3s;
+}
+
+/* Ajuste específico para cuando está en modo oscuro */
+[data-bs-theme="dark"] .navbar {
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+/* El texto del navbar también tiene que cambiar */
+[data-bs-theme="dark"] .navbar h4, 
+[data-bs-theme="dark"] .navbar i {
+    color: #e2e8f0 !important;
+}
+/* --- ARREGLOS DE EMERGENCIA (MODO OSCURO Y VISUALES) --- */
+
+/* 1. LIMITAR EL ANCHO DEL MENÚ DESPLEGABLE (Para que no tape todo) */
+.position-relative {
+    position: relative !important; /* Asegura que el padre sea el ancla */
+}
+
+.search-results-dropdown, #resultados-busqueda {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100% !important; /* Ancho exacto del buscador */
+    max-width: 100% !important; 
+    z-index: 2000;
+    background-color: var(--card-bg, #fff);
+    border: 1px solid #ccc;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+/* 2. ARREGLAR INPUTS EN MODO OSCURO (Monto y otros) */
+[data-bs-theme="dark"] input.form-control,
+[data-bs-theme="dark"] select.form-select,
+[data-bs-theme="dark"] .input-group-text {
+    background-color: #334155 !important; /* Gris oscuro visible */
+    border-color: #475569 !important;
+    color: #ffffff !important; /* Texto BLANCO puro */
+}
+
+[data-bs-theme="dark"] input.form-control::placeholder {
+    color: #cbd5e1 !important; /* Texto de ayuda gris claro */
+}
+
+/* 3. ARREGLAR ICONOS EN MODO OSCURO (QR y Lupa) */
+[data-bs-theme="dark"] .bi, 
+[data-bs-theme="dark"] .fa, 
+[data-bs-theme="dark"] i {
+    color: #e2e8f0 !important; /* Iconos blancos/claros */
+}
+/* Excepción: Si el icono está dentro de un botón de color (como el azul de cámara) */
+[data-bs-theme="dark"] .btn-primary i {
+    color: #ffffff !important;
+}
+
+/* --- ARREGLO FINAL DE CAJA DE PAGO --- */
+
+/* 1. El Contenedor (La caja que rodea el pago) */
+#campo-efectivo {
+    background-color: #f1f5f9; /* Gris muy suave en modo claro */
+    border: 1px solid #cbd5e1;
+    transition: all 0.3s ease;
+}
+
+/* En MODO OSCURO: Se vuelve azul oscuro */
+[data-bs-theme="dark"] #campo-efectivo {
+    background-color: #0f172a !important; /* Fondo oscuro profundo */
+    border: 1px solid #334155 !important;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* 2. El Input del Monto (Donde escribís los números) */
+#monto-abona {
+    font-size: 2rem !important; /* Números GRANDES */
+    font-weight: 800 !important;
+    text-align: center;         /* Centrado estilo cajero automático */
+    height: 60px;
+    border: 2px solid #cbd5e1;
+}
+
+/* Input en MODO OSCURO */
+[data-bs-theme="dark"] #monto-abona {
+    background-color: #1e293b !important; /* Un poco más claro que el fondo */
+    border-color: #3b82f6 !important;     /* Borde Azul Brillante */
+    color: #ffffff !important;            /* Texto Blanco Puro */
+}
+
+/* Placeholder (El texto "Ingrese monto...") */
+#monto-abona::placeholder {
+    font-size: 1.2rem;
+    font-weight: normal;
+    opacity: 0.6;
+}
+
+[data-bs-theme="dark"] #monto-abona::placeholder {
+    color: #94a3b8 !important; /* Gris claro legible en modo oscuro */
+}
+/* --- RETOQUES FINALES DE PRECISIÓN --- */
+
+/* 1. ELIMINAR LA LÍNEA BLANCA (Ocultar caja de resultados vacía) */
+/* El selector :empty detecta si el div no tiene contenido y lo oculta totalmente */
+#resultados-busqueda:empty {
+    display: none !important;
+    border: none !important;
+    padding: 0 !important;
+}
+
+/* 2. ARREGLAR BOTÓN QR EN MODO OSCURO */
+/* Actualmente 'btn-outline-dark' se ve negro en fondo oscuro. Lo cambiamos: */
+[data-bs-theme="dark"] #btn-connect-mobile {
+    color: #cbd5e1 !important;        /* Icono gris claro */
+    border-color: #475569 !important; /* Borde igual al del input */
+    background-color: transparent !important; /* Fondo transparente */
+}
+
+/* Efecto al pasar el mouse por el QR en modo oscuro */
+[data-bs-theme="dark"] #btn-connect-mobile:hover {
+    background-color: #334155 !important; /* Gris suave al tocar */
+    color: #fff !important;
+}
+
+/* 3. PEQUEÑO DETALLE: Alineación perfecta de la barra */
+/* Aseguramos que los botones y el input tengan la misma altura visual */
+.input-group .btn, .input-group .form-control {
+    z-index: 0; /* Evita superposiciones raras de bordes */
+}
+/* --- ARREGLO DE TABLAS EN MODO OSCURO --- */
+[data-bs-theme="dark"] .table-light {
+    background-color: #1e293b !important; /* Fondo oscuro */
+    color: #e2e8f0 !important;           /* Texto claro */
+    border-color: #334155 !important;
+}
+
+[data-bs-theme="dark"] .table-light th {
+    background-color: #1e293b !important; /* Asegura que el encabezado sea oscuro */
+    color: #fff !important;
+    border-bottom: 1px solid #475569;
+}
+
+/* Arreglo para cuando pasas el mouse por encima de las filas */
+[data-bs-theme="dark"] .table-hover tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: #fff !important;
+}
+/* --- ARREGLO DE SCROLL EN MENÚ LATERAL --- */
+#sidebar-wrapper {
+    /* Asegura que ocupe toda la altura de la ventana */
+    height: 100vh; 
+    
+    /* Habilita la ruedita (scroll vertical) si el contenido es largo */
+    overflow-y: auto; 
+    
+    /* Oculta la barra horizontal fea */
+    overflow-x: hidden; 
+    
+    /* (Opcional) Hace que el scroll sea fijo mientras el contenido principal se mueve */
+    position: sticky; 
+    top: 0;
+}
+
+/* --- ESTILIZAR LA BARRA DE DESPLAZAMIENTO (Para que no sea gris fea) --- */
+
+/* Ancho de la barra */
+#sidebar-wrapper::-webkit-scrollbar {
+    width: 6px;
+}
+
+/* Color del fondo de la barra (transparente) */
+#sidebar-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* Color del "dedo" que se mueve (Gris suave) */
+#sidebar-wrapper::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 10px;
+}
+
+/* En MODO OSCURO: Barra más clara para que se vea */
+[data-bs-theme="dark"] #sidebar-wrapper::-webkit-scrollbar-thumb {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+/* --- ARREGLO FINAL DE ESTRUCTURA (MENU + CONTENIDO) --- */
+
+#sidebar-wrapper {
+    /* 1. Dimensiones Fijas (Para que no se achique nunca) */
+    min-width: 280px; 
+    max-width: 280px;
+    width: 280px;
+    
+    /* 2. Comportamiento de Scroll */
+    height: 100vh;        /* Ocupa toda la altura de la pantalla */
+    overflow-y: auto;     /* Activa la ruedita si falta espacio */
+    overflow-x: hidden;   /* Oculta scroll horizontal */
+    
+    /* 3. Posición (Lo clavamos a la izquierda) */
+    position: fixed;      
+    left: 0;
+    top: 0;
+    z-index: 1000;
+    
+    /* 4. Estética */
+    transition: margin 0.25s ease-out;
+    border-right: 1px solid rgba(0,0,0,0.1); /* Borde sutil separador */
+}
+
+/* --- EL CONTENIDO PRINCIPAL (Dashboard, Ventas, etc.) --- */
+#page-content-wrapper {
+    /* 1. Lo empujamos a la derecha para que no quede tapado por el menú */
+    margin-left: 280px; /* Tiene que medir lo mismo que el sidebar */
+    
+    /* 2. Ancho fluido */
+    width: calc(100% - 280px); /* Ocupa el resto de la pantalla */
+    min-height: 100vh;
+    transition: all 0.25s ease-out;
+}
+
+/* --- LÓGICA DE OCULTAR MENÚ (Cuando tocas las 3 rayitas) --- */
+#wrapper.toggled #sidebar-wrapper {
+    margin-left: -280px; /* Se esconde a la izquierda */
+}
+
+#wrapper.toggled #page-content-wrapper {
+    margin-left: 0;      /* El contenido se estira */
+    width: 100%;
+}
+
+/* --- ARREGLO DE TEXTO CORTADO EN EL MENÚ --- */
+#sidebar-wrapper .list-group-item {
+    white-space: nowrap;      /* Texto en una sola línea */
+    overflow: hidden;         /* Esconder sobrante */
+    text-overflow: ellipsis;  /* Puntos suspensivos... */
+    padding-right: 20px;      /* Espacio para que no toque la barra de scroll */
 }

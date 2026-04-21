@@ -1,0 +1,11 @@
+# Variables de entorno y secretos (¡NUNCA SUBIR!)
+.env
+
+# Entornos virtuales
+venv/
+env/
+
+# Archivos de caché de Python y base de datos local
+__pycache__/
+*.pyc
+db.sqlite3

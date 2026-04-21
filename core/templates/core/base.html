@@ -1,136 +1,226 @@
+{% load static %}
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-bs-theme="light">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Sistema de Control</title>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestión</title>
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/2.0.8/css/dataTables.bootstrap5.css">
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    {% load static %}
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'core/css/styles.css' %}">
 </head>
 <body>
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-    <div class="container">
-        <a class="navbar-brand" href="{% url 'dashboard' %}">
-            Mi Kiosco 
-            {% if ctx_sucursal_actual_nombre and ctx_sucursal_actual_nombre != "Sin Asignar" %}
-                <span class="badge bg-secondary fs-6 ms-2">{{ ctx_sucursal_actual_nombre }}</span>
-            {% endif %}
-        </a>
+    <div class="d-flex" id="wrapper">
+        <div class="border-end bg-sidebar" id="sidebar-wrapper">
+            <div class="sidebar-heading text-center py-4 primary-text fs-4 fw-bold text-uppercase border-bottom">
+                <i class="bi bi-shop me-2"></i>{{ nombre_negocio }}
+            </div>
+            
+            <div class="list-group list-group-flush my-3">
+                <a href="{% url 'dashboard' %}" class="list-group-item list-group-item-action bg-transparent second-text active">
+                    <i class="bi bi-speedometer2 me-2"></i>Dashboard
+                </a>
 
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'registrar_venta' %}">Nueva Venta</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'historial_ventas' %}">Historial de Ventas</a>
-                </li>
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownGestion" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        Gestión y Stock
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="navbarDropdownGestion">
-                        {% if user.is_superuser %}
-                            <li><a class="dropdown-item" href="{% url 'listar_proveedores' %}">Gestionar Proveedores</a></li>
-                            <li><a class="dropdown-item" href="{% url 'listar_productos' %}">Gestionar Productos</a></li>
-                            <li><a class="dropdown-item" href="{% url 'listar_categorias' %}">Gestionar Categorías</a></li>
-                            <li><a class="dropdown-item" href="{% url 'listar_envases' %}">Gestionar Envases</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                        {% endif %}
-                        <li><a class="dropdown-item" href="{% url 'cerrar_turno' %}">Cerrar Turno / Caja</a></li>
-                        <li><a class="dropdown-item" href="{% url 'stock_detalle' %}">Ver Stock Detallado</a></li>
-                        <li><a class="dropdown-item" href="{% url 'agregar_stock' %}">Añadir Stock</a></li>
-                        <li><a class="dropdown-item" href="{% url 'reponer_gondola' %}">Reponer Góndola</a></li>
-                        <li><a class="dropdown-item" href="{% url 'importar_stock' %}">Importar desde Excel</a></li>
-                        <li><a class="dropdown-item" href="{% url 'cargar_factura_ocr' %}">Cargar Factura (Foto)</a></li>
-                        <li><a class="dropdown-item" href="{% url 'contar_inventario' %}">Realizar Inventario Físico</a></li>
-                    </ul>
-                </li>
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" id="navbarDropdownReportes" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        Reportes
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="navbarDropdownReportes">
-                        <li><a class="dropdown-item" href="{% url 'reportes_dashboard' %}">Ver Reportes y Caja</a></li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item" href="{% url 'analisis_canasta' %}">Análisis de Canasta</a></li>
-                        <li><a class="dropdown-item" href="{% url 'sugerencias_compra' %}">Sugerencias de Compra</a></li>
-                        <li><a class="dropdown-item" href="{% url 'registrar_factura_proveedor' %}">Registrar Factura (Compra)</a></li>
-                    </ul>
-                </li>
-                
                 {% if user.is_superuser %}
-                <li class="nav-item dropdown">
-                     <a class="nav-link dropdown-toggle text-warning" href="#" role="button" data-bs-toggle="dropdown">
-                         <i class="bi bi-arrow-repeat"></i> Cambiar Local
-                     </a>
-                     <ul class="dropdown-menu">
-                         {% for s in ctx_todas_sucursales %}
-                             <li>
-                                 <a class="dropdown-item" href="{% url 'cambiar_sucursal_sesion' s.id %}">
-                                     {{ s.nombre }}
-                                 </a>
-                             </li>
-                         {% endfor %}
-                     </ul>
-                </li>
-                {% endif %}
-            </ul>
-
-            <ul class="navbar-nav">
-                <li class="nav-item">
-                    <a class="nav-link fs-5" href="{% url 'stock_detalle' %}" title="Ver Stock Detallado">
-                        <i class="bi bi-bell-fill position-relative">
-                            {% if alertas_vencimiento_count > 0 %}
-                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" title="{{ alertas_vencimiento_count }} alertas">
-                                {{ alertas_vencimiento_count }}
-                            </span>
-                            {% endif %}
-                        </i>
+                    <a href="#menuSucursales" class="list-group-item list-group-item-action bg-transparent second-text fw-bold" data-bs-toggle="collapse">
+                        <i class="bi bi-building me-2"></i>Sucursales <i class="bi bi-chevron-down ms-auto small"></i>
                     </a>
-                </li>
-                {% if user.is_authenticated %}
-                <li class="nav-item">
-                    <form method="post" action="{% url 'logout' %}">
-                        {% csrf_token %}
-                        <button type="submit" class="nav-link btn btn-link">Cerrar Sesión</button>
-                    </form>
-                </li>
+                    <div class="collapse" id="menuSucursales">
+                        <a href="{% url 'seleccionar_sucursal' 0 %}" class="sub-item ps-5 {% if not request.session.sucursal_seleccionada_id %}text-warning{% endif %}">
+                            <i class="bi bi-globe small"></i> Ver Todo (Global)
+                        </a>
+
+                        {% for suc in todas_las_sucursales_contexto %} 
+                            <a href="{% url 'seleccionar_sucursal' suc.id %}" 
+                            class="sub-item ps-5 {% if request.session.sucursal_seleccionada_id == suc.id %}text-primary fw-bold{% endif %}">
+                                {{ suc.nombre }}
+                            </a>
+                        {% endfor %}
+                        
+                        <div class="border-top my-1"></div>
+                        
+                        <a href="{% url 'listar_sucursales' %}" class="sub-item ps-5 text-info">
+                            <i class="bi bi-gear-fill small"></i> Administrar
+                        </a>
+                    </div>
+                {% else %}
+                    <div class="list-group-item bg-transparent second-text text-muted">
+                        <i class="bi bi-shop me-2"></i> {{ user.perfilusuario.sucursal.nombre|default:"Sin Asignar" }}
+                    </div>
                 {% endif %}
-            </ul>
+
+                <a href="#menuVentas" class="list-group-item list-group-item-action bg-transparent second-text fw-bold" data-bs-toggle="collapse">
+                    <i class="bi bi-cart4 me-2"></i>Ventas <i class="bi bi-chevron-down ms-auto small"></i>
+                </a>
+                <div class="collapse" id="menuVentas">
+                    <a href="{% url 'registrar_venta' %}" class="sub-item ps-5">Nueva Venta</a>
+                    <a href="{% url 'historial_ventas' %}" class="sub-item ps-5">Historial</a>
+                </div>
+
+                <a href="#menuProductos" class="list-group-item list-group-item-action bg-transparent second-text fw-bold" data-bs-toggle="collapse">
+                    <i class="bi bi-box-seam me-2"></i>Gestión y Stock <i class="bi bi-chevron-down ms-auto small"></i>
+                </a>
+                <div class="collapse" id="menuProductos">
+                    <a href="{% url 'stock_detalle' %}" class="sub-item ps-5">
+                        <i class="bi bi-list-check"></i> Stock Detallado
+                    </a>
+                    <a href="{% url 'agregar_stock' %}" class="sub-item ps-5">
+                        <i class="bi bi-plus-circle"></i> Ingresar Mercadería
+                    </a>
+                    <a href="{% url 'importar_stock' %}" class="sub-item ps-5 ms-3 small text-muted" style="font-size: 0.9em;">
+                        <i class="bi bi-file-earmark-spreadsheet"></i> Importar Excel
+                    </a>
+                    <a href="{% url 'cargar_factura_ocr' %}" class="sub-item ps-5 ms-3 small text-muted" style="font-size: 0.9em;">
+                        <i class="bi bi-camera"></i> Cargar por Foto
+                    </a>
+                    <a href="{% url 'reponer_gondola' %}" class="sub-item ps-5">
+                        <i class="bi bi-arrow-left-right"></i> Reponer Góndola
+                    </a>
+                    
+                    <a href="{% url 'listar_productos' %}" class="sub-item ps-5">
+                        <i class="bi bi-tags"></i> Lista de Precios
+                    </a>
+                    <a href="{% url 'crear_producto' %}" class="sub-item ps-5">
+                        <i class="bi bi-file-earmark-plus"></i> Nuevo Producto
+                    </a>
+                    <div class="border-top my-1"></div> <a href="{% url 'listar_categorias' %}" class="sub-item ps-5">
+                        <i class="bi bi-tag-fill"></i> Categorías
+                    </a>
+                </div>
+              
+                    <a href="#menuProveedores" class="list-group-item list-group-item-action bg-transparent second-text fw-bold" data-bs-toggle="collapse">
+                        <i class="bi bi-truck me-2"></i>Proveedores <i class="bi bi-chevron-down ms-auto small"></i>
+                    </a>
+                    <div class="collapse" id="menuProveedores">
+                        <a href="{% url 'sugerencias_compra' %}" class="sub-item ps-5 text-warning fw-bold">
+                            <i class="bi bi-cart-plus-fill"></i> Sugerencias a Pedir
+                        </a>
+                        <a href="{% url 'listar_proveedores' %}" class="sub-item ps-5">
+                            <i class="bi bi-list-task"></i> Listado y Cta. Cte.
+                        </a>
+
+                        <a href="{% url 'registrar_factura_proveedor' %}" class="sub-item ps-5">
+                            <i class="bi bi-receipt"></i> Cargar Factura Compra
+                        </a>
+                        <a href="{% url 'crear_proveedor' %}" class="sub-item ps-5 text-success">
+                            <i class="bi bi-person-plus"></i> Nuevo Proveedor
+                        </a>
+
+                    </div>
+             
+
+                <a href="#menuReportes" class="list-group-item list-group-item-action bg-transparent second-text fw-bold" data-bs-toggle="collapse">
+                    <i class="bi bi-bar-chart-line me-2"></i>Reportes <i class="bi bi-chevron-down ms-auto small"></i>
+                </a>
+                <div class="collapse" id="menuReportes">
+                    <a href="{% url 'reportes_dashboard' %}" class="sub-item ps-5">
+                        <i class="bi bi-pie-chart"></i> Balance Financiero
+                    </a>
+                    <a href="{% url 'historial_ventas' %}" class="sub-item ps-5">
+                        <i class="bi bi-clock-history"></i> Historial de Ventas
+                    </a>
+                    <a href="{% url 'analisis_canasta' %}" class="sub-item ps-5 text-info fw-bold">
+                        <i class="bi bi-lightbulb-fill"></i> Análisis de Canasta
+                    </a>
+                    <a href="{% url 'cerrar_turno' %}" class="sub-item ps-5 text-danger fw-bold">
+                         <i class="bi bi-door-closed-fill"></i> Cierre de Caja (Turno)
+                </a>
+                </div>
+
+                <a href="#menuClientes" class="list-group-item list-group-item-action bg-transparent second-text fw-bold" data-bs-toggle="collapse">
+                    <i class="bi bi-people me-2"></i>Clientes <i class="bi bi-chevron-down ms-auto small"></i>
+                </a>
+                <div class="collapse" id="menuClientes">
+                    <a href="{% url 'listar_clientes' %}" class="sub-item ps-5">
+                            Listado Clientes
+                    </a>
+                    <a href="{% url 'listar_clientes' %}?filtro=deudores" class="sub-item ps-5 text-warning">
+                            Cuentas Corrientes (Deudores)
+                    </a>
+                </div>
+
+            {% if user.perfilusuario.rol == 'admin' %}
+                <a href="{% url 'configuracion' %}" class="list-group-item list-group-item-action bg-transparent second-text fw-bold">
+                    <i class="bi bi-gear me-2"></i>Configuración Negocio
+                </a>
+                
+                <a href="{% url 'gestionar_usuarios' %}" class="list-group-item list-group-item-action bg-transparent second-text fw-bold text-primary">
+                    <i class="bi bi-people me-2"></i>Gestión de Personal
+                </a>
+            {% endif %}
+            </div>
+        </div>
+
+        <div id="page-content-wrapper">
+            <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom px-4 py-3 d-flex justify-content-between">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-list fs-3 me-3" id="menu-toggle" style="cursor: pointer;"></i>
+                    <h4 class="m-0 fw-bold">Gestión de Stock</h4>
+                </div>
+
+                <button class="btn btn-outline-secondary rounded-circle" id="theme-toggle" title="Cambiar Tema">
+                    <i class="bi bi-moon-stars-fill"></i>
+                </button>
+            </nav>
+
+            <div class="container-fluid px-4 py-4">
+                {% if messages %}
+                    {% for message in messages %}
+                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+                
+                {% block content %}{% endblock %}
+            </div>
         </div>
     </div>
-</nav>
 
-<main class="container mt-4">
-    {% if messages %}
-        {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        {% endfor %}
-    {% endif %}
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Lógica del Menú Lateral
+        var el = document.getElementById("wrapper");
+        var toggleButton = document.getElementById("menu-toggle");
 
-    {% block content %}{% endblock %}
-</main>
+        toggleButton.onclick = function () {
+            el.classList.toggle("toggled");
+        };
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://code.jquery.com/jquery-3.7.1.js"></script>
-<script src="https://cdn.datatables.net/2.0.8/js/dataTables.js"></script>
-<script src="https://cdn.datatables.net/2.0.8/js/dataTables.bootstrap5.js"></script>
+        // Lógica del Modo Oscuro
+        const themeToggle = document.getElementById('theme-toggle');
+        const html = document.documentElement;
+        const icon = themeToggle.querySelector('i');
 
-{% block javascript %}{% endblock %}
+        // Cargar preferencia guardada
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        html.setAttribute('data-bs-theme', savedTheme);
+        updateIcon(savedTheme);
 
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = html.getAttribute('data-bs-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            
+            html.setAttribute('data-bs-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateIcon(newTheme);
+        });
+
+        function updateIcon(theme) {
+            if(theme === 'dark') {
+                icon.classList.replace('bi-moon-stars-fill', 'bi-sun-fill');
+                // Agregamos una clase especial al sidebar si es necesario en CSS
+                document.getElementById('sidebar-wrapper').classList.add('dark-mode-sidebar');
+            } else {
+                icon.classList.replace('bi-sun-fill', 'bi-moon-stars-fill');
+                document.getElementById('sidebar-wrapper').classList.remove('dark-mode-sidebar');
+            }
+        }
+    </script>
+    {% block javascript %}{% endblock %}
 </body>
 </html>

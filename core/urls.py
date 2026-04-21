@@ -29,12 +29,14 @@ urlpatterns = [
 
 
     # --- VISTAS DE GESTIÓN ---
-    # Proveedores
+ # --- GESTIÓN DE PROVEEDORES ---
     path('proveedores/', views.listar_proveedores, name='listar_proveedores'),
     path('proveedores/nuevo/', views.crear_proveedor, name='crear_proveedor'),
     path('proveedores/<int:proveedor_id>/editar/', views.editar_proveedor, name='editar_proveedor'),
     path('proveedores/<int:proveedor_id>/eliminar/', views.eliminar_proveedor, name='eliminar_proveedor'),
     path('proveedores/<int:proveedor_id>/detalle/', views.detalle_proveedor, name='detalle_proveedor'),
+    
+    # --- FACTURACIÓN Y PAGOS ---
     path('proveedores/registrar-factura/', views.registrar_factura_proveedor, name='registrar_factura_proveedor'),
     path('proveedores/registrar-pago/', views.registrar_pago_proveedor, name='registrar_pago_proveedor'),
     # Productos
@@ -44,7 +46,7 @@ urlpatterns = [
     path('productos/<int:producto_id>/eliminar/', views.eliminar_producto, name='eliminar_producto'),
     # Categorías
     path('categorias/', views.listar_categorias, name='listar_categorias'),
-    path('categorias/nuevo/', views.crear_categoria, name='crear_categoria'),
+    path('categorias/nueva/', views.crear_categoria, name='crear_categoria'),
     path('categorias/<int:categoria_id>/editar/', views.editar_categoria, name='editar_categoria'),
     path('categorias/<int:categoria_id>/eliminar/', views.eliminar_categoria, name='eliminar_categoria'),
 
@@ -77,4 +79,17 @@ urlpatterns = [
     path('api/scanner/check/<uuid:uuid>/', views.check_scan, name='check_scan'),
     path('api/scanner/enviar/<uuid:uuid>/', views.enviar_codigo_remoto, name='enviar_codigo_remoto'),
     path('scanner-remoto/<uuid:uuid>/', views.pantalla_scanner_remoto, name='pantalla_scanner_remoto'),
+
+    path('configuracion/', views.configuracion, name='configuracion'),
+    path('usuarios/', views.gestionar_usuarios, name='gestionar_usuarios'),
+    # Rutas para cambiar de local (La magia del admin)
+    path('sucursal/seleccionar/<int:sucursal_id>/', views.seleccionar_sucursal, name='seleccionar_sucursal'),
+
+    # Rutas para Administrar (Crear/Editar)
+    path('sucursales/', views.SucursalListView.as_view(), name='listar_sucursales'),
+    path('sucursales/nueva/', views.SucursalCreateView.as_view(), name='crear_sucursal'),
+    path('sucursales/editar/<int:pk>/', views.SucursalUpdateView.as_view(), name='editar_sucursal'),
+
+
+
 ]

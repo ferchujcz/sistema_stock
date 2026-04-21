@@ -1,19 +1,24 @@
 """
 Django settings for control_stock project.
 """
+
 import os
 from pathlib import Path
 import dj_database_url
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# <--- NUEVO 2: Le decimos que cargue los datos secretos AHORA MISMO
+load_dotenv(os.path.join(BASE_DIR, '.env'))
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-p0t@(j!*c2i+nnh7g0l3@xwr0ggh3=j#_9egtqdg0*3%+0(ud2'
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-p0t@(j!*c2i+nnh7g0l3@xwr0ggh3=j#_9egtqdg0*3%+0(ud2')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 # Lo ponemos en True para desarrollo local
-DEBUG = True
+DEBUG = os.environ.get('DJANGO_DEBUG', '') != 'False'
 
 # Permitimos acceso desde cualquier IP (Tu PC, Tu Celular, Ngrok)
 ALLOWED_HOSTS = ['*']
@@ -61,7 +66,8 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 # Tus procesadores de contexto personalizados
-                'core.context_processors.alertas_globales',
+                'core.context_processors.info_global',      # <--- ESTE NUEVO
+                'core.context_processors.alertas_globales', # <--- ESTE
             ],
         },
     },

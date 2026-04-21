@@ -1,84 +1,56 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
-<div class="container mt-4">
+<div class="container mt-4" style="max-width: 800px;">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2><i class="bi bi-box-seam"></i> Ingreso de Mercadería</h2>
-        <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary">Volver</a>
+        <h2><i class="bi bi-file-earmark-spreadsheet-fill text-success"></i> Importación Masiva</h2>
+        <a href="{% url 'agregar_stock' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Volver
+        </a>
     </div>
 
-    <div class="card mb-4 border-0 shadow-sm">
-        <div class="card-body bg-light">
-            <label class="form-label fw-bold">Buscar producto para sumar stock:</label>
-            <form method="get" action="" id="form-buscador">
-                <div class="input-group input-group-lg">
-                    <input type="text" name="q" id="buscador-stock" 
-                           class="form-control" 
-                           placeholder="Escaneá el código o escribí el nombre..." 
-                           autofocus>
-                    
-                    {% include 'core/includes/scanner_component.html' %}
-                    
-                    <button class="btn btn-primary" type="submit">
-                        <i class="bi bi-search"></i> Buscar
-                    </button>
+    <div class="row g-4">
+        <div class="col-md-5">
+            <div class="card h-100 shadow-sm border-primary">
+                <div class="card-body text-center">
+                    <h5 class="card-title text-primary fw-bold">Paso 1</h5>
+                    <p class="card-text">Descargá la plantilla de Excel para saber cómo ordenar los datos.</p>
+                    <i class="bi bi-file-earmark-excel display-1 text-primary my-3"></i>
+                    <div class="d-grid">
+                        <a href="{% url 'descargar_plantilla_excel' %}" class="btn btn-primary">
+                            <i class="bi bi-download"></i> Descargar Plantilla
+                        </a>
+                    </div>
                 </div>
-            </form>
+            </div>
         </div>
-    </div>
 
-    {% if productos %}
-    <div class="card shadow">
-        <div class="card-body p-0">
-            <table class="table table-hover mb-0 align-middle">
-                <thead class="table-light">
-                    <tr>
-                        <th class="ps-4">Producto</th>
-                        <th>Código</th>
-                        <th>Stock Actual</th>
-                        <th>Acción</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for p in productos %}
-                    <tr>
-                        <td class="ps-4 fw-bold">{{ p.nombre }}</td>
-                        <td><span class="badge bg-secondary">{{ p.codigo_barras }}</span></td>
-                        <td>{{ p.stock }} u.</td>
-                        <td>
-                            <a href="{% url 'editar_stock' p.id %}" class="btn btn-sm btn-success">
-                                <i class="bi bi-plus-lg"></i> Sumar Stock
-                            </a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <div class="col-md-7">
+            <div class="card h-100 shadow-sm border-success">
+                <div class="card-body">
+                    <h5 class="card-title text-success fw-bold">Paso 2</h5>
+                    <p class="card-text">Subí el archivo Excel completo.</p>
+                    
+                    <form method="post" enctype="multipart/form-data" class="mt-4">
+                        {% csrf_token %}
+                        <div class="mb-4">
+                            <label for="archivo_excel" class="form-label fw-bold">Seleccionar Archivo (.xlsx)</label>
+                            <input type="file" name="archivo_excel" class="form-control form-control-lg" id="archivo_excel" accept=".xlsx, .xls" required>
+                        </div>
+                        
+                        <div class="alert alert-light border small">
+                            <i class="bi bi-info-circle"></i> El sistema detectará automáticamente si los productos existen (para sumar stock) o si son nuevos (para crearlos).
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="bi bi-cloud-upload"></i> Subir y Analizar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
-    {% elif request.GET.q %}
-        <div class="alert alert-warning text-center">
-            No se encontró ningún producto con "{{ request.GET.q }}". 
-            <a href="{% url 'crear_producto' %}" class="fw-bold">¿Crear nuevo?</a>
-        </div>
-    {% endif %}
 </div>
-{% endblock %}
-
-{% block javascript %}
-<script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Conectar el Escáner
-        iniciarScanner(function(codigo) {
-            if (!codigo) return;
-
-            const buscador = document.getElementById('buscador-stock');
-            buscador.value = codigo;
-            
-            // Simular clic en Buscar automáticamente
-            // (Ojo: esto envía el formulario GET y recarga la página con los resultados)
-            document.getElementById('form-buscador').submit(); 
-        });
-    });
-</script>
 {% endblock %}

@@ -1,28 +1,37 @@
 # core/views.py
-
+import time
 from fuzzywuzzy import fuzz
 import io
 from django.http import HttpResponse
 import json
-
+from .forms import ProductoForm
+from .models import Configuracion
+from django.conf import settings
+from django.db.models.functions import Abs
 # --- Imports de Django ---
 from django.shortcuts import render, redirect, get_object_or_404
+from django.utils.dateparse import parse_date
 from django.http import JsonResponse
 from django.db import transaction, IntegrityError
 from django.contrib import messages
 from django.utils import timezone
 from django.db.models import Sum, Count,Case, When, IntegerField, Min, F, Q
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 from django.views.decorators.csrf import csrf_exempt
 from .models import SesionEscaneo
 from apyori import apriori
-
+from django.views.generic import ListView, CreateView, UpdateView
+from django.urls import reverse_lazy
+from django.contrib.auth.mixins import UserPassesTestMixin
 # --- Imports de Python ---
 import json
 import os
 import re
 from datetime import timedelta,datetime
 from decimal import Decimal, ROUND_HALF_UP
+import google.generativeai as genai
+from PIL import Image, ImageEnhance
 
 # --- Imports de Terceros ---
 import pandas as pd
@@ -37,32 +46,27 @@ from .models import (
     Categoria, Sucursal, PerfilUsuario,Cliente, PagoCliente, EnvaseRetornable, StockEnvases, FacturaProveedor, PagoProveedor, CierreTurno, PrediccionVenta
 )
 
-# --- Helper Function ---
+
+# --- AGREGAR AL PRINCIPIO DE VIEWS.PY ---
 def obtener_sucursal_usuario(request):
     """
-    Devuelve la sucursal activa.
-    - Si es Superusuario: Busca en la sesión, luego en el perfil.
-    - Si es Empleado: Busca siempre en el perfil (fijo).
+    Determina qué sucursal debe ver el usuario.
+    1. Si es EMPLEADO: Devuelve su sucursal asignada (fija).
+    2. Si es ADMIN: Devuelve la sucursal que eligió en la sesión, 
+       o None si quiere ver el "Global" (todas).
     """
-    # 1. Si es Superusuario, priorizamos la selección temporal (sesión)
     if request.user.is_superuser:
-        sucursal_id_session = request.session.get('sucursal_seleccionada_id')
-        if sucursal_id_session:
-            try:
-                return Sucursal.objects.get(id=sucursal_id_session)
-            except Sucursal.DoesNotExist:
-                pass # Si falla, volvemos al perfil
+        # El admin manda: si eligió una sucursal en el menú, usamos esa
+        sucursal_id = request.session.get('sucursal_seleccionada_id')
+        if sucursal_id:
+            return Sucursal.objects.filter(id=sucursal_id).first()
+        return None # None significa "Modo Global" (ver todo)
     
-    # 2. Si no hay sesión (o no es superuser), usamos el perfil de base de datos
+    # Si es mortal (empleado), usa la de su perfil
     try:
-        perfil = getattr(request.user, 'perfilusuario', None)
-        if perfil and perfil.sucursal:
-            return perfil.sucursal
-    except PerfilUsuario.DoesNotExist:
-        pass
-        
-    return None
-
+        return request.user.perfilusuario.sucursal
+    except:
+        return None
 # ==============================================================================
 # VISTA PRINCIPAL (DASHBOARD)
 # ==============================================================================
@@ -282,6 +286,21 @@ def stock_detalle(request):
     info_consolidada.sort(key=lambda x: (x['dias_para_vencer'] is None, x['dias_para_vencer'] if x['dias_para_vencer'] is not None else float('inf'))) # Ordenar nulos al final
     return render(request, 'core/stock_detalle.html', {'info_consolidada': info_consolidada, 'sucursal_actual': sucursal_usuario})
 
+
+
+def importar_stock(request):
+    query = request.GET.get('q')
+    productos = []
+    
+    if query:
+        # BUSQUEDA INTELIGENTE:
+        # Busca si el texto está en el Código de Barras O (OR) en el Nombre
+        productos = Producto.objects.filter(
+            Q(codigo_barras__icontains=query) | 
+            Q(nombre__icontains=query)
+        )
+
+    return render(request, 'core/importar_stock.html', {'productos': productos})
 @login_required
 def agregar_stock(request):
     sucursal_usuario = obtener_sucursal_usuario(request)
@@ -909,159 +928,198 @@ def procesar_importacion_excel(request):
 
     return redirect('stock_detalle')
 
+# =========================================================
+# CONFIGURACIÓN DE GEMINI API (El "Cerebro")
+# =========================================================
+genai.configure(api_key='AIzaSyAP_WUbRpfdkPG3LTG08JkljlxeDUwFWls')
 
 @login_required
 def cargar_factura_ocr(request):
-    # Verificamos si la librería de Google está instalada
-    if vision is None:
-        messages.error(request, "La función de carga por foto no está disponible (falta librería 'google-cloud-vision').")
-        return redirect('dashboard')
-        
     sucursal_usuario = obtener_sucursal_usuario(request)
-    if not sucursal_usuario:
-        messages.error(request, "Necesitas una sucursal asignada para usar esta función.")
+    
+    if not sucursal_usuario and request.user.perfilusuario.rol != 'admin':
+        messages.error(request, "Necesitas una sucursal asignada.")
         return redirect('dashboard')
 
     if request.method == 'POST' and request.FILES.get('imagen_factura'):
         try:
-            # --- CONFIGURACIÓN DE CREDENCIALES (LOCAL vs NUBE) ---
-            # Definimos la ruta absoluta en PythonAnywhere (ajustá 'panchito25' si es otro usuario)
-            ruta_nube = '/home/panchito25/sistema_stock/gcloud-credentials.json'
+            # =========================================================
+            # OPTIMIZACIÓN 1: DIETA DE IMAGEN (BLANCO Y NEGRO + RESIZE)
+            # =========================================================
+            archivo_imagen = request.FILES['imagen_factura']
+            img = Image.open(archivo_imagen)
             
-            # Verificamos si el archivo existe en la ruta de la nube
-            if os.path.exists(ruta_nube):
-                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = ruta_nube
-            else:
-                # Si no, asumimos que estamos en local (tu PC)
-                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'gcloud-credentials.json'
-            
-            # --- FIN CONFIGURACIÓN ---
+            # Pasamos a escala de grises (L) para eliminar ruido de color
+            img = img.convert('L')
+            # Aumentamos un poquito el contraste para que las letras resalten
+            enhancer = ImageEnhance.Contrast(img)
+            img = enhancer.enhance(1.5)
+            # Reducimos a 800x800 (Suficiente para leer texto, gasta mínimos tokens)
+            img.thumbnail((800, 800))
 
-            client = vision.ImageAnnotatorClient()
-            content = request.FILES['imagen_factura'].read()
-            image = vision.Image(content=content)
-            response = client.document_text_detection(image=image)
+            # Usamos Flash 1.5 que es el más estable y económico
+            modelo_ia = genai.GenerativeModel('gemini-2.5-flash-lite')
             
-            if response.error.message: 
-                raise Exception(f'{response.error.message}\nVerifica API.')
+            # =========================================================
+            # OPTIMIZACIÓN 2: MICRO-PROMPT (Cero palabras innecesarias)
+            # =========================================================
+            instruccion = """Extrae datos de la factura. Ignora CUITs, teléfonos y totales.
+            Devuelve SOLO un JSON con esta estructura exacta:
+            {"proveedor": "Nombre", "productos": [{"cantidad": 1, "descripcion": "ejemplo", "precio_unitario": 100.5}]}"""
             
-            full_text = response.text_annotations[0].description if response.text_annotations else ""
+            # =========================================================
+            # OPTIMIZACIÓN 3: MODO JSON NATIVO
+            # =========================================================
+            # Esto obliga a la IA a no escribir texto, SOLO código JSON. Ahorra tokens de salida.
+            config_json = genai.GenerationConfig(response_mime_type="application/json")
+
+            # =========================================================
+            # LÓGICA DE REINTENTOS (Tolerancia a fallos de cuota)
+            # =========================================================
+            max_intentos = 3
+            datos_ordenados = {}
             
-        except Exception as e:
-            messages.error(request, f"Error al procesar con IA: {e}")
-            return redirect('cargar_factura_ocr')
-
-        productos_encontrados = []
-        lineas = full_text.split('\n')
-        PALABRAS_FILTRO = ['total', 'subtotal', 'iva', 'pago', 'gracias', 'cuit', 'fecha', 'mesa', 'comensales', 'atendido', 'base', 'dto', 'descuento']
-
-        for i, linea in enumerate(lineas):
-            linea_limpia = linea.strip().lower()
-            if not linea_limpia or any(palabra in linea_limpia for palabra in PALABRAS_FILTRO): continue
-
-            cantidad, descripcion, costo = None, None, None
-            # Patrón 1
-            match = re.search(r'^\s*([\d,]+)\s*[xX]?\s*(.*?)(?:\s+\$?([\d,]+\.?\d*))?\s*$', linea)
-            if match:
+            for intento in range(max_intentos):
                 try:
-                    cantidad = int(match.group(1).replace(',', ''))
-                    descripcion = match.group(2).strip()
-                    costo_str = match.group(3)
-                    if costo_str: costo = Decimal(costo_str.replace(',', '.'))
+                    respuesta_ia = modelo_ia.generate_content(
+                        [instruccion, img], 
+                        generation_config=config_json # Aplicamos la regla estricta
+                    )
+                    # Como ya viene en JSON puro, no hace falta hacer .replace("```json")
+                    datos_ordenados = json.loads(respuesta_ia.text)
+                    break 
+                except Exception as error_ia:
+                    if '429' in str(error_ia) and intento < max_intentos - 1:
+                        time.sleep(4) # Pausa de 4 segs si hay cuello de botella
+                        continue
                     else:
-                        if i + 1 < len(lineas):
-                            match_precio_siguiente = re.search(r'^\s*\$?([\d,]+\.?\d*)\s*$', lineas[i+1])
-                            if match_precio_siguiente: costo = Decimal(match_precio_siguiente.group(1).replace(',', '.'))
-                except: continue
-            # Patrón 2
-            elif i + 1 < len(lineas):
-                linea_siguiente = lineas[i+1]
-                match_siguiente = re.search(r'^\s*([\d,]+)\s*(?:u|un|ud|und)?\s*x\s*\$?([\d,]+\.?\d*)', linea_siguiente, re.IGNORECASE)
-                if match_siguiente:
-                    try:
-                        cantidad = int(match_siguiente.group(1).replace(',', ''))
-                        descripcion = linea.strip()
-                        costo_unitario = Decimal(match_siguiente.group(2).replace(',', '.'))
-                        costo = costo_unitario * cantidad
-                    except: continue
+                        raise error_ia
 
-            if cantidad is not None and descripcion and cantidad > 0:
-                producto_db = Producto.objects.filter(nombre__iexact=descripcion).first() or Producto.objects.filter(nombre__icontains=descripcion).first()
-                costo_unitario_final = costo / cantidad if costo is not None and cantidad > 0 else Decimal('0.00')
-                precio_venta_sugerido = None
-                if producto_db and producto_db.categoria and producto_db.categoria.margen_ganancia_porcentaje > 0:
-                    margen = producto_db.categoria.margen_ganancia_porcentaje / Decimal(100)
-                    precio_venta_sugerido = (costo_unitario_final * (1 + margen)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            # =========================================================
+            # PROCESAMIENTO EN PYTHON (La IA ya no trabaja acá, trabaja tu CPU)
+            # =========================================================
+            proveedor_detectado = datos_ordenados.get("proveedor", "Proveedor Desconocido")
+            lista_productos_ia = datos_ordenados.get("productos", [])
+
+            productos_encontrados = []
+            mi_negocio = request.user.perfilusuario.negocio
+            todos_los_productos = Producto.objects.filter(negocio=mi_negocio)
+            
+            for index, item in enumerate(lista_productos_ia, start=1):
+                descripcion = item.get('descripcion', 'Sin descripción')
+                cantidad = item.get('cantidad', 1)
+                
+                # Filtro de seguridad rápido en Python
+                if type(cantidad) == str or cantidad > 5000: cantidad = 1
+                
+                costo = item.get('precio_unitario', 0)
+                
+                producto_db_match = None
+                for p_db in todos_los_productos:
+                    if p_db.nombre.lower() in descripcion.lower():
+                        producto_db_match = p_db
+                        break
 
                 productos_encontrados.append({
-                    'id_temporal': i, 'descripcion_factura': descripcion, 'cantidad_sugerida': cantidad,
-                    'costo_sugerido': costo_unitario_final, 'producto_db': producto_db,
-                    'precio_venta_sugerido': precio_venta_sugerido or (producto_db.precio_venta if producto_db else '')
+                    'id_temporal': index,
+                    'descripcion_factura': descripcion,
+                    'cantidad_sugerida': cantidad,
+                    'costo_sugerido': str(costo).replace(',', '.'),
+                    'precio_venta_sugerido': '0',
+                    'producto_db': producto_db_match,
                 })
 
-        context = {'productos_encontrados': productos_encontrados, 'todos_los_productos': Producto.objects.all(), 'texto_completo_ocr': full_text}
-        return render(request, 'core/confirmar_factura_ocr.html', context)
+            return render(request, 'core/confirmar_factura_ocr.html', {
+                'productos_encontrados': productos_encontrados,
+                'texto_completo_ocr': "Lectura Visual Optimizada (Escala de grises, contraste mejorado, JSON nativo).",
+                'proveedor_detectado': proveedor_detectado,
+                'todos_los_productos': todos_los_productos
+            })
+
+        except Exception as e:
+            messages.error(request, f"Error del sistema OCR: {e}")
+            return redirect('cargar_factura_ocr')
 
     return render(request, 'core/cargar_factura_ocr.html')
 @login_required
 def guardar_factura_confirmada(request):
     sucursal_usuario = obtener_sucursal_usuario(request)
-    if not sucursal_usuario:
-        messages.error(request, "Error: No se pudo determinar la sucursal del usuario.")
+    
+    # Validación de seguridad SaaS
+    if not sucursal_usuario and request.user.perfilusuario.rol != 'admin':
+        messages.error(request, "Error: No se pudo determinar tu sucursal.")
         return redirect('dashboard')
 
     if request.method == 'POST':
-        fecha_vencimiento = request.POST.get('fecha_vencimiento') or None
         ubicacion = request.POST.get('ubicacion', 'deposito')
         items = {}
+        
+        # 1. Agrupamos todos los datos del formulario por el ID de la fila
         for key, value in request.POST.items():
-             if '_' in key:
-                 try: # Evitar errores si el ID no es numérico
-                     parts = key.split('_')
-                     item_id = parts[-1]
-                     field_name = '_'.join(parts[:-1])
-                     if item_id not in items: items[item_id] = {}
-                     items[item_id][field_name] = value
-                 except ValueError:
-                     pass # Ignorar claves mal formadas
+            if '_' in key and not key.startswith('csrf'):
+                try:
+                    parts = key.split('_')
+                    item_id = parts[-1]
+                    field_name = '_'.join(parts[:-1])
+                    if item_id not in items: items[item_id] = {}
+                    items[item_id][field_name] = value
+                except ValueError:
+                    pass
 
         items_cargados = 0
         try:
             with transaction.atomic():
                 for item_id, data in items.items():
-                    if not all(k in data for k in ('producto', 'cantidad', 'costo')) or not data['producto'] or not data['cantidad'] or not data['costo']:
-                         print(f"Omitiendo item {item_id}, faltan datos: {data}")
-                         continue
+                    # Validación básica: si falta algo, salteamos la fila
+                    if not data.get('producto') or not data.get('cantidad') or not data.get('costo'):
+                        continue
+                    
                     try:
                         producto_id = data['producto']
                         cantidad = int(data['cantidad'])
                         costo = Decimal(data['costo'])
                         precio_venta_str = data.get('precio_venta', '0')
-                        precio_venta = Decimal(precio_venta_str) if precio_venta_str else Decimal('0') # Manejar string vacío
+                        precio_venta = Decimal(precio_venta_str) if precio_venta_str else Decimal('0')
+                        
+                        # --- ACÁ ESTÁ LA MAGIA DE LA FECHA INDIVIDUAL ---
+                        fecha_venc_str = data.get('fecha_vencimiento')
+                        fecha_vencimiento_item = fecha_venc_str if fecha_venc_str else None
+
                     except (ValueError, TypeError):
-                         messages.warning(request, f"Datos inválidos para item {item_id}. Omitido.")
-                         continue
+                        messages.warning(request, f"Datos inválidos en una de las filas. Omitida.")
+                        continue
 
                     if cantidad <= 0 or costo < 0: continue
 
+                    # 2. Actualizamos el costo y precio del Producto
                     producto = get_object_or_404(Producto, id=producto_id)
                     producto.costo = costo
-                    if precio_venta > 0: producto.precio_venta = precio_venta
+                    
+                    if precio_venta > 0: 
+                        producto.precio_venta = precio_venta
                     elif producto.categoria and producto.categoria.margen_ganancia_porcentaje > 0:
                         margen = producto.categoria.margen_ganancia_porcentaje / Decimal(100)
-                        precio_venta_sugerido = (costo * (1 + margen)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-                        producto.precio_venta = precio_venta_sugerido
+                        producto.precio_venta = (costo * (1 + margen)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                    
                     producto.save()
 
+                    # 3. Guardamos el Lote de Stock con SU propia fecha
                     Stock.objects.create(
-                        producto=producto, cantidad=cantidad, fecha_vencimiento=fecha_vencimiento,
-                        ubicacion=ubicacion, sucursal=sucursal_usuario
+                        producto=producto, 
+                        cantidad=cantidad, 
+                        fecha_vencimiento=fecha_vencimiento_item, 
+                        ubicacion=ubicacion, 
+                        sucursal=sucursal_usuario
                     )
                     items_cargados += 1
 
-            if items_cargados > 0: messages.success(request, f"¡Factura cargada! Se añadieron {items_cargados} items al stock.")
-            else: messages.warning(request, "No se cargaron items válidos.")
+            # Mensajes de éxito
+            if items_cargados > 0: 
+                messages.success(request, f"¡Factura cargada! Se añadieron {items_cargados} productos al stock.")
+            else: 
+                messages.warning(request, "No se cargaron items válidos.")
             return redirect('stock_detalle')
+            
         except Exception as e:
             messages.error(request, f"Ocurrió un error al guardar: {e}")
             return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
@@ -1261,55 +1319,40 @@ def listar_productos(request):
     productos = Producto.objects.select_related('proveedor').all().order_by('nombre')
     return render(request, 'core/listar_productos.html', {'productos': productos})
 
-@login_required
 def crear_producto(request):
     if request.method == 'POST':
-        # --- CORRECCIÓN AQUÍ ---
-        # Movemos la lógica para obtener datos DENTRO del bloque try
-        # y cerramos el paréntesis de 'codigo_barras'
+        # Cargamos los datos que mandó el usuario en el formulario
+        form = ProductoForm(request.POST) 
+        
+        if form.is_valid():
+            try:
+                form.save() # ¡Se guarda solo! Magia de Django
+                messages.success(request, '¡Producto creado exitosamente!')
+                return redirect('listar_productos') # O el nombre de tu url de lista
+            except Exception as e:
+                messages.error(request, f'Error al guardar: {e}')
+        else:
+            messages.error(request, 'Por favor corrige los errores en el formulario.')
+    else:
+        # Si es GET (cuando entrás a la página), creamos un formulario vacío
+        form = ProductoForm()
 
-        codigo_barras = request.POST.get('codigo_barras') or None # Guardar None si está vacío
-
-        try:
-            prov_id = request.POST.get('proveedor')
-            cat_id = request.POST.get('categoria')
-
-            Producto.objects.create(
-                nombre=request.POST['nombre'],
-                codigo_barras=codigo_barras, 
-                proveedor_id=int(prov_id) if prov_id else None,
-                categoria_id=int(cat_id) if cat_id else None,
-                costo=request.POST['costo'],
-                precio_venta=request.POST['precio_venta'],
-                stock_minimo=request.POST.get('stock_minimo', 5) or 5,
-                es_perecedero=request.POST.get('es_perecedero') == 'on',
-                es_favorito=request.POST.get('es_favorito') == 'on'
-            )
-            messages.success(request, '¡Producto creado!')
-            return redirect('listar_productos')
-
-        except IntegrityError: 
-            messages.error(request, f'Error: Ya existe un producto con el Código de Barras "{codigo_barras}".')
-        except Exception as e:
-            messages.error(request, f'Error inesperado: {e}')
-
-        # --- FIN DE LA CORRECCIÓN ---
-
-    # --- Lógica GET (se mantiene igual) ---
+    # Datos extra para los selectores o JS (opcional si usás el form automático)
     proveedores = Proveedor.objects.all().order_by('nombre')
     categorias = Categoria.objects.all().order_by('nombre')
-
+    
+    # Esto es para tu JS de margen de ganancia
     categorias_json = json.dumps(
         {cat.id: float(cat.margen_ganancia_porcentaje) for cat in categorias}
     )
 
     context = {
+        'form': form, # <--- ESTO ES LO QUE FALTABA PARA QUE APAREZCAN LOS CAMPOS
         'proveedores': proveedores,
         'categorias': categorias,
         'categorias_json': categorias_json,
     }
     return render(request, 'core/form_producto.html', context)
-
 
 @login_required
 def editar_producto(request, producto_id):
@@ -1404,65 +1447,81 @@ def eliminar_categoria(request, categoria_id):
         messages.success(request, '¡Categoría eliminada!')
     return redirect('listar_categorias')
 
-# ==============================================================================
-# VISTAS DE GESTIÓN DE CLIENTES Y CUENTA CORRIENTE
+#==============================================================================
+# GESTIÓN DE CLIENTES Y CUENTA CORRIENTE (CORREGIDO)
 # ==============================================================================
 
 @login_required
 def listar_clientes(request):
-    # Mostramos todos los clientes. Podríamos filtrar por sucursal si fuera necesario.
-    clientes = Cliente.objects.all().order_by('nombre_completo')
-    return render(request, 'core/listar_clientes.html', {'clientes': clientes})
+    query = request.GET.get('q')
+    filtro_deuda = request.GET.get('filtro') # <--- NUEVO: Detecta si pedimos solo deudores
+    
+    # Base: Calculamos el valor absoluto del saldo
+    clientes = Cliente.objects.annotate(
+        saldo_abs=Abs('cuenta_corriente')
+    ).order_by('nombre')
+    
+    # 1. Si apretaste "Cuentas Corrientes", filtramos solo los que tienen deuda positiva
+    if filtro_deuda == 'deudores':
+        clientes = clientes.filter(cuenta_corriente__gt=0) # Solo los que deben (> 0)
+
+    # 2. Si usaste el buscador
+    if query:
+        clientes = clientes.filter(
+            Q(nombre__icontains=query) | 
+            Q(dni__icontains=query)
+        )
+
+    return render(request, 'core/listar_clientes.html', {
+        'clientes': clientes,
+        'solo_deudores': (filtro_deuda == 'deudores') # Para mostrar un título distinto en el HTML si querés
+    })
 
 @login_required
 def crear_cliente(request):
     if request.method == 'POST':
-        limite_credito = request.POST.get('limite_credito', 0)
+        try:
+            Cliente.objects.create(
+                nombre=request.POST['nombre'],
+                dni=request.POST.get('dni'),
+                telefono=request.POST.get('telefono'),
+                direccion=request.POST.get('direccion'),
+                cuenta_corriente=0 # Empieza sin deuda
+            )
+            messages.success(request, '¡Cliente registrado!')
+            return redirect('listar_clientes')
+        except Exception as e:
+            messages.error(request, f'Error al crear: {e}')
 
-        Cliente.objects.create(
-            nombre_completo=request.POST['nombre_completo'],
-            dni=request.POST.get('dni'),
-            telefono=request.POST.get('telefono'),
-            limite_credito=limite_credito if request.user.is_superuser else 0, # Solo admin pone límite
-            saldo_actual=0
-        )
-        messages.success(request, '¡Cliente creado exitosamente!')
-        return redirect('listar_clientes')
-
-    return render(request, 'core/form_cliente.html')
+    return render(request, 'core/form_cliente.html', {'titulo': 'Nuevo Cliente'})
 
 @login_required
 def editar_cliente(request, cliente_id):
     cliente = get_object_or_404(Cliente, id=cliente_id)
 
     if request.method == 'POST':
-        cliente.nombre_completo = request.POST['nombre_completo']
+        cliente.nombre = request.POST['nombre']
         cliente.dni = request.POST.get('dni')
         cliente.telefono = request.POST.get('telefono')
-
-        if request.user.is_superuser: # Solo admin puede cambiar el límite
-            cliente.limite_credito = request.POST.get('limite_credito', 0)
-
+        cliente.direccion = request.POST.get('direccion')
         cliente.save()
-        messages.success(request, '¡Cliente actualizado exitosamente!')
+        messages.success(request, 'Datos actualizados.')
         return redirect('listar_clientes')
 
-    return render(request, 'core/form_cliente.html', {'cliente': cliente})
+    return render(request, 'core/form_cliente.html', {'cliente': cliente, 'titulo': 'Editar Cliente'})
 
 @login_required
 def estado_cuenta_cliente(request, cliente_id):
     cliente = get_object_or_404(Cliente, id=cliente_id)
 
-    # Obtenemos todas las transacciones (ventas fiadas y pagos)
+    # 1. Ventas Fiadas (Deuda)
     ventas_fiadas = Venta.objects.filter(
         cliente=cliente, 
         metodo_pago='cuenta_corriente'
     ).order_by('-fecha_hora')
 
+    # 2. Pagos Realizados (Haber)
     pagos_realizados = PagoCliente.objects.filter(cliente=cliente).order_by('-fecha')
-
-    # Combinar y ordenar transacciones por fecha (opcional pero recomendado para un resumen real)
-    # Por ahora, las pasamos separadas para mostrarlas en dos tablas.
 
     context = {
         'cliente': cliente,
@@ -1472,58 +1531,38 @@ def estado_cuenta_cliente(request, cliente_id):
     return render(request, 'core/estado_cuenta_cliente.html', context)
 
 @login_required
-def registrar_pago_cliente(request):
+def registrar_pago_cliente(request, cliente_id):
     if request.method != 'POST':
         return redirect('listar_clientes')
 
     sucursal_usuario = obtener_sucursal_usuario(request)
-    if not sucursal_usuario:
-        messages.error(request, "Usuario sin sucursal asignada para registrar un pago.")
-        return redirect('listar_clientes')
-
-    cliente_id = request.POST.get('cliente_id')
-    monto_str = request.POST.get('monto')
     cliente = get_object_or_404(Cliente, id=cliente_id)
+    monto_str = request.POST.get('monto')
 
     try:
         monto = Decimal(monto_str)
-        if monto <= 0:
-            raise ValueError("El monto debe ser positivo.")
+        if monto <= 0: raise ValueError("Monto inválido")
 
         with transaction.atomic():
-            # 1. Registramos el pago
+            # A. Guardar el Pago en el Historial
             PagoCliente.objects.create(
-                cliente=cliente, 
-                sucursal=sucursal_usuario, 
+                cliente=cliente,
+                sucursal=sucursal_usuario, # Puede ser None si es admin global, ojo con esto en el modelo
                 monto=monto
             )
-            # 2. Actualizamos el saldo del cliente
-            cliente.saldo_actual -= monto
+            
+            # B. Bajar la Deuda (Cuenta Corriente)
+            # Si cuenta_corriente es POSITIVA significa que DEBE plata.
+            # Al pagar, restamos.
+            cliente.cuenta_corriente -= monto
             cliente.save()
 
-        messages.success(request, f"Se registró un pago de ${monto} para {cliente.nombre_completo}.")
+        messages.success(request, f"Pago de ${monto} registrado exitosamente.")
 
-    except (ValueError, TypeError):
-        messages.error(request, "Error: El monto ingresado no es válido.")
     except Exception as e:
-        messages.error(request, f"Error inesperado: {e}")
+        messages.error(request, f"Error al registrar pago: {e}")
 
     return redirect('estado_cuenta_cliente', cliente_id=cliente.id)
-
-@login_required
-def api_buscar_clientes(request):
-    query = request.GET.get('term', '')
-    # Filtramos por nombre o DNI
-    clientes = Cliente.objects.filter(
-        Q(nombre_completo__icontains=query) | Q(dni__icontains=query)
-    )[:10]
-
-    resultados = [
-        {'id': c.id, 'nombre': c.nombre_completo, 'saldo': c.saldo_actual, 'limite': c.limite_credito} 
-        for c in clientes
-    ]
-    return JsonResponse(resultados, safe=False)
-
 
 
 # ==============================================================================
@@ -1581,78 +1620,130 @@ def eliminar_envase(request, envase_id):
 # ==============================================================================
 @login_required
 def analisis_canasta(request):
-    # 1. Obtener todas las ventas y sus detalles
-    ventas = Venta.objects.prefetch_related('detalles__producto').all()
+    mi_negocio = request.user.perfilusuario.negocio
+    # ¡CLAVE! Buscar solo las ventas de las sucursales de ESTE negocio
+    ventas_del_negocio = Venta.objects.filter(sucursal__negocio=mi_negocio)
+    # ... resto de tu algoritmo de reglas de asociación ...
+    sucursal_usuario = obtener_sucursal_usuario(request)
+    
+    # 1. Filtramos: Solo ventas de la sucursal actual y del último mes (para rendimiento)
+    fecha_limite = timezone.now() - timedelta(days=30)
+    
+    ventas_query = Venta.objects.filter(fecha_hora__gte=fecha_limite).prefetch_related('detalles__producto')
+    
+    if sucursal_usuario:
+        ventas_query = ventas_query.filter(sucursal=sucursal_usuario)
 
-    # 2. Convertir las ventas en "transacciones" (listas de nombres de productos)
+    # 2. Convertir a transacciones
     transacciones = []
-    for venta in ventas:
-        # Incluir solo ventas con más de un producto
+    for venta in ventas_query:
         if venta.detalles.count() > 1:
-            productos_en_venta = [detalle.producto.nombre for detalle in venta.detalles.all()]
-            transacciones.append(productos_en_venta)
+            # Usamos una lista de strings con los nombres de productos
+            productos = [d.producto.nombre for d in venta.detalles.all()]
+            transacciones.append(productos)
 
     resultados_apyori = []
-    if transacciones:
-        # 3. Ejecutar el algoritmo Apriori
-        # Ajusta min_support y min_confidence según necesites (más altos = reglas más fuertes pero menos cantidad)
-        reglas = apriori(transacciones, min_support=0.01, min_confidence=0.1, min_lift=1.1, min_length=2)
-
-        # 4. Formatear los resultados para mostrarlos
-        for regla in reglas:
-            for item_set in regla.ordered_statistics:
-                # Mostrar solo reglas simples A -> B
-                if len(item_set.items_base) == 1 and len(item_set.items_add) == 1:
-                    item_base = list(item_set.items_base)[0]
-                    item_add = list(item_set.items_add)[0]
-                    soporte = round(regla.support * 100, 2) # % de todas las transacciones
-                    confianza = round(item_set.confidence * 100, 2) # % de veces que B se compra si se compra A
-
-                    resultados_apyori.append({
-                        'base': item_base,
-                        'add': item_add,
-                        'soporte': soporte,
-                        'confianza': confianza,
-                    })
-
-    # Ordenamos por confianza (las reglas más fuertes primero)
-    resultados_apyori.sort(key=lambda x: x['confianza'], reverse=True)
-
-    return render(request, 'core/analisis_canasta.html', {'reglas': resultados_apyori})
-
+    
+    # Solo ejecutamos si hay suficientes datos
+    if len(transacciones) > 5:
+        try:
+            reglas = apriori(transacciones, min_support=0.02, min_confidence=0.1, min_lift=1.1, min_length=2)
+            
+            for regla in reglas:
+                for item_set in regla.ordered_statistics:
+                    if len(item_set.items_base) == 1 and len(item_set.items_add) == 1:
+                        resultados_apyori.append({
+                            'base': list(item_set.items_base)[0],
+                            'add': list(item_set.items_add)[0],
+                            'soporte': round(regla.support * 100, 1),
+                            'confianza': round(item_set.confidence * 100, 1),
+                            'lift': round(item_set.lift, 2)
+                        })
+                        
+            resultados_apyori.sort(key=lambda x: x['confianza'], reverse=True)
+        except Exception as e:
+            messages.warning(request, f"No hay suficientes patrones de venta aún.")
+            
+    return render(request, 'core/analisis_canasta.html', {
+        'reglas': resultados_apyori, 
+        'total_transacciones': len(transacciones)
+    })
 
 @login_required
 def sugerencias_compra(request):
+    mi_negocio = request.user.perfilusuario.negocio
     sucursal_usuario = obtener_sucursal_usuario(request)
-    if not sucursal_usuario and not request.user.is_superuser:
-        messages.error(request, "Necesitas una sucursal asignada.")
+    
+    if not sucursal_usuario and not request.user.perfilusuario.rol == 'admin':
+        messages.error(request, "Necesitas una sucursal asignada para ver esto.")
         return redirect('dashboard')
 
-    # Obtenemos productos con su stock total (global o por sucursal) y proveedor
-    productos = Producto.objects.select_related('proveedor').annotate(
-        stock_total=Sum('lotes__cantidad', filter=Q(lotes__sucursal=sucursal_usuario)) if sucursal_usuario else Sum('lotes__cantidad')
-    ).filter(stock_total__isnull=False) # Solo productos con stock calculado
+    hoy = timezone.now().date()
+    
+    # 1. Filtramos solo los productos de ESTE negocio
+    productos = Producto.objects.filter(negocio=mi_negocio).select_related('proveedor')
 
-    # Filtramos los que están bajo el mínimo
-    productos_a_pedir = productos.filter(stock_total__lt=F('stock_minimo'))
-
-    # Agrupamos por proveedor
     sugerencias_por_proveedor = {}
-    for producto in productos_a_pedir:
-        # Calculamos cuánto pedir (simple: para llegar al mínimo + un poco más)
-        cantidad_a_pedir = (producto.stock_minimo - producto.stock_total) + (producto.stock_minimo // 2) # Pedir para llegar al minimo + 50%
 
-        proveedor_nombre = producto.proveedor.nombre if producto.proveedor else "Sin Proveedor Asignado"
+    for producto in productos:
+        # --- A. Calcular Stock Actual ---
+        if sucursal_usuario:
+            stock_actual = Stock.objects.filter(producto=producto, sucursal=sucursal_usuario).aggregate(Sum('cantidad'))['cantidad__sum'] or 0
+        else:
+            stock_actual = Stock.objects.filter(producto=producto).aggregate(Sum('cantidad'))['cantidad__sum'] or 0
 
-        if proveedor_nombre not in sugerencias_por_proveedor:
-            sugerencias_por_proveedor[proveedor_nombre] = []
+        # --- B. Determinar Fecha del Próximo Pedido ---
+        proveedor = producto.proveedor
+        fecha_entrega = None
+        
+        if proveedor:
+            nombre_proveedor = proveedor.nombre
+            fecha_entrega = proveedor.proxima_fecha_entrega()
+        else:
+            nombre_proveedor = "Sin Proveedor Asignado"
 
-        sugerencias_por_proveedor[proveedor_nombre].append({
-            'nombre': producto.nombre,
-            'stock_actual': producto.stock_total,
-            'stock_minimo': producto.stock_minimo,
-            'cantidad_sugerida': cantidad_a_pedir
-        })
+        # Si no hay fecha de entrega configurada, asumimos que pedimos para cubrir 7 días
+        if not fecha_entrega:
+            fecha_entrega = hoy + timedelta(days=7)
+
+        # --- C. Consultar a la IA (Predicciones) ---
+        # Sumamos cuánto dice la IA que vamos a vender desde HOY hasta que llegue el camión
+        predicciones = PrediccionVenta.objects.filter(
+            producto=producto,
+            fecha__gte=hoy,
+            fecha__lte=fecha_entrega
+        )
+        
+        if sucursal_usuario:
+            predicciones = predicciones.filter(sucursal=sucursal_usuario)
+
+        ventas_esperadas = predicciones.aggregate(Sum('cantidad_predicha'))['cantidad_predicha__sum'] or 0
+        ventas_esperadas = float(ventas_esperadas)
+
+        # --- D. La Matemática del Kiosco (Stock Proyectado) ---
+        stock_proyectado = float(stock_actual) - ventas_esperadas
+
+        # --- E. Decisión de Compra ---
+        # Si de acá a que llegue el camión nos quedamos por debajo del mínimo... ¡A PEDIR!
+        if stock_proyectado < float(producto.stock_minimo):
+            
+            # ¿Cuánto pedimos? Lo que vamos a vender + lo que nos falta para cubrir el mínimo
+            cantidad_a_pedir = float(producto.stock_minimo) - stock_proyectado
+            cantidad_a_pedir = int(round(cantidad_a_pedir)) # Redondeamos a números enteros
+
+            if cantidad_a_pedir > 0:
+                if nombre_proveedor not in sugerencias_por_proveedor:
+                    sugerencias_por_proveedor[nombre_proveedor] = []
+
+                sugerencias_por_proveedor[nombre_proveedor].append({
+                    'nombre': producto.nombre,
+                    'stock_actual': stock_actual,
+                    'ventas_esperadas': round(ventas_esperadas, 1),
+                    'fecha_entrega': fecha_entrega.strftime('%d/%m/%Y'),
+                    'stock_proyectado': round(stock_proyectado, 1),
+                    'stock_minimo': producto.stock_minimo,
+                    'cantidad_sugerida': cantidad_a_pedir
+                })
 
     context = {
         'sugerencias': sugerencias_por_proveedor,
@@ -1665,104 +1756,96 @@ def sugerencias_compra(request):
 # ==============================================================================
 @login_required
 def reportes_dashboard(request):
-    sucursal_usuario = obtener_sucursal_usuario(request)
-    if not request.user.is_superuser:
-        if not sucursal_usuario:
-            messages.error(request, "Tu usuario no está asignado a ninguna sucursal.")
-            return redirect('dashboard')
-    
-    # --- 1. FILTRADO DE FECHAS ---
-    fecha_inicio_str = request.GET.get('fecha_inicio', timezone.now().strftime('%Y-%m-%d'))
-    fecha_fin_str = request.GET.get('fecha_fin', timezone.now().strftime('%Y-%m-%d'))
-    
-    try:
-        fecha_inicio = datetime.strptime(fecha_inicio_str, '%Y-%m-%d').date()
-        # Ajuste: Hacemos que la fecha fin incluya el día completo (hasta las 23:59:59)
-        fecha_fin_dt = datetime.strptime(fecha_fin_str, '%Y-%m-%d') + timedelta(days=1, seconds=-1)
-    except ValueError:
-        messages.error(request, "Formato de fecha inválido.")
-        return redirect('reportes_dashboard')
+    # 1. Obtener parámetros de filtro (GET)
+    fecha_inicio_str = request.GET.get('fecha_inicio')
+    fecha_fin_str = request.GET.get('fecha_fin')
+    sucursal_id = request.GET.get('sucursal_id')
 
-    # --- 2. FILTRADO DE SUCURSAL ---
-    sucursal_id_filtro = request.GET.get('sucursal_id')
-    sucursal_seleccionada = None
-    
-    if request.user.is_superuser:
-        if sucursal_id_filtro:
-            sucursal_seleccionada = get_object_or_404(Sucursal, id=sucursal_id_filtro)
+    # 2. Configurar Fechas (Por defecto: Mes actual)
+    hoy = timezone.now()
+    if fecha_inicio_str:
+        fecha_inicio = parse_date(fecha_inicio_str)
     else:
-        sucursal_seleccionada = sucursal_usuario
+        fecha_inicio = hoy.date().replace(day=1) # Primer día del mes
 
-    # --- 3. QUERIES DE DATOS ---
-    
-    # Base de consultas filtradas por fecha
-    ventas_query = Venta.objects.filter(fecha_hora__range=(fecha_inicio, fecha_fin_dt))
-    pagos_clientes_query = PagoCliente.objects.filter(fecha__range=(fecha_inicio, fecha_fin_dt))
-    pagos_proveedores_query = PagoProveedor.objects.filter(fecha__range=(fecha_inicio, fecha_fin_dt))
-    
-    if sucursal_seleccionada:
-        ventas_query = ventas_query.filter(sucursal=sucursal_seleccionada)
-        pagos_clientes_query = pagos_clientes_query.filter(sucursal=sucursal_seleccionada)
-        pagos_proveedores_query = pagos_proveedores_query.filter(sucursal=sucursal_seleccionada)
+    if fecha_fin_str:
+        fecha_fin = parse_date(fecha_fin_str)
+    else:
+        fecha_fin = hoy.date() # Hoy
 
-    # A. INGRESOS REALES (Dinero que entró a la caja/banco)
+    # Ajuste técnico: Para incluir todo el día final, sumamos 1 día al cierre
+    # (Porque la venta es '2024-02-10 15:30' y el filtro '2024-02-10' corta a las 00:00)
+    fecha_fin_filtro = fecha_fin + timezone.timedelta(days=1)
+
+    # 3. Base Query
+    ventas = Venta.objects.filter(fecha_hora__range=[fecha_inicio, fecha_fin_filtro])
+
+    # 4. Filtro de Sucursal
+    sucursal_usuario = obtener_sucursal_usuario(request)
     
-    # A1. Ventas (CORRECCIÓN: TRADUCCIÓN DE NOMBRES)
-    # Obtenemos los datos crudos agrupados
-    datos_brutos = ventas_query.exclude(metodo_pago='cuenta_corriente').values('metodo_pago').annotate(
-        total=Sum('total')
-    ).order_by('metodo_pago')
+    # Si es admin y eligió una sucursal específica en el filtro
+    if request.user.is_superuser and sucursal_id:
+        ventas = ventas.filter(sucursal_id=sucursal_id)
+        sucursal_actual = Sucursal.objects.get(id=sucursal_id)
+    # Si es admin y no eligió (ve todo)
+    elif request.user.is_superuser:
+        sucursal_actual = None # "Todas"
+    # Si es empleado, solo ve su sucursal
+    elif sucursal_usuario:
+        ventas = ventas.filter(sucursal=sucursal_usuario)
+        sucursal_actual = sucursal_usuario
+    else:
+        ventas = Venta.objects.none() # Seguridad
+        sucursal_actual = None
+
+    # 5. Cálculos para Gráficos y Tarjetas
     
-    # Creamos un diccionario para traducir (ej: 'efectivo' -> 'Efectivo')
-    nombres_metodos = dict(Venta.METODO_PAGO_CHOICES)
+    # A. Ingresos por Método de Pago
+    metodos = ['efectivo', 'debito', 'credito', 'qr', 'cuenta_corriente']
+    datos_metodos = []
+    labels_metodos = []
+    colors_metodos = ['#28a745', '#007bff', '#dc3545', '#17a2b8', '#ffc107'] # Colores fijos
     
-    ingresos_por_metodo = []
-    for dato in datos_brutos:
-        codigo = dato['metodo_pago']
-        # Obtenemos el nombre legible. Si no existe (por datos viejos vacíos), ponemos "Sin especificar"
-        nombre_legible = nombres_metodos.get(codigo, "Sin especificar") if codigo else "Sin especificar"
+    total_ingresos_reales = 0
+    total_fiado = 0
+
+    for metodo in metodos:
+        total = ventas.filter(metodo_pago=metodo).aggregate(Sum('total'))['total__sum'] or 0
+        total = float(total) # Convertir Decimal a float para JSON
         
-        ingresos_por_metodo.append({
-            'nombre_metodo': nombre_legible, # Usaremos esto en el HTML
-            'total': dato['total']
-        })
+        datos_metodos.append(total)
+        labels_metodos.append(metodo.capitalize().replace('_', ' '))
+        
+        if metodo == 'cuenta_corriente':
+            total_fiado += total
+        else:
+            total_ingresos_reales += total
 
-    # A2. Cobros de Cuentas Corrientes (Fiado)
-    total_cobros_fiado = pagos_clientes_query.aggregate(total=Sum('monto'))['total'] or 0
-
-    # B. SALIDAS REALES
-    total_pagos_proveedor = pagos_proveedores_query.aggregate(total=Sum('monto'))['total'] or 0
-
-    # C. MOVIMIENTOS A CRÉDITO (No afectan la caja)
-    total_ventas_fiadas = ventas_query.filter(metodo_pago='cuenta_corriente').aggregate(total=Sum('total'))['total'] or 0
-
-    # D. BALANCES GENERALES (Totales históricos)
-    balance_clientes = Cliente.objects.aggregate(total=Sum('saldo_actual'))['total'] or 0
-    balance_proveedores = Proveedor.objects.aggregate(total=Sum('saldo_actual'))['total'] or 0
+    # B. Ventas vs Costos (Estimado simple)
+    # Si tenés costos en DetalleVenta, podrías sumar aquí. Por ahora usaremos Total Venta.
     
-    # E. HISTORIAL DE MOVIMIENTOS
-    ventas_listado = ventas_query.order_by('-fecha_hora')[:50]
-    pagos_clientes_listado = pagos_clientes_query.order_by('-fecha')[:50]
-    pagos_proveedores_listado = pagos_proveedores_query.order_by('-fecha')[:50]
-    
+    # 6. Contexto para el Template
     context = {
-        'ingresos_por_metodo': ingresos_por_metodo, # Lista procesada y traducida
-        'total_cobros_fiado': total_cobros_fiado,
-        'total_pagos_proveedor': total_pagos_proveedor,
-        'total_ventas_fiadas': total_ventas_fiadas,
-        
-        'balance_clientes': balance_clientes,
-        'balance_proveedores': balance_proveedores,
-        
-        'ventas_listado': ventas_listado,
-        'pagos_clientes_listado': pagos_clientes_listado,
-        'pagos_proveedores_listado': pagos_proveedores_listado,
-        
-        'fecha_inicio': fecha_inicio_str,
-        'fecha_fin': fecha_fin_str,
-        'sucursal_seleccionada': sucursal_seleccionada,
+        'fecha_inicio': fecha_inicio.strftime('%Y-%m-%d'),
+        'fecha_fin': fecha_fin.strftime('%Y-%m-%d'),
+        'sucursal_seleccionada': sucursal_actual,
         'todas_las_sucursales': Sucursal.objects.all() if request.user.is_superuser else None,
+        
+        # Totales Tarjetas
+        'total_general': total_ingresos_reales + total_fiado,
+        'total_caja_real': total_ingresos_reales,
+        'total_fiado': total_fiado,
+        'cantidad_ventas': ventas.count(),
+        
+        # Datos para Gráficos (JSON)
+        'chart_labels': json.dumps(labels_metodos),
+        'chart_data': json.dumps(datos_metodos),
+        'chart_colors': json.dumps(colors_metodos),
+        
+        # Listado Detallado (Últimas 100)
+        'ventas_listado': ventas.order_by('-fecha_hora')[:100]
     }
+
     return render(request, 'core/reportes_dashboard.html', context)
 
 @login_required
@@ -1909,3 +1992,131 @@ def enviar_codigo_remoto(request, uuid):
 # 4. CELULAR: La página que ve el empleado en el teléfono
 def pantalla_scanner_remoto(request, uuid):
     return render(request, 'core/scanner_remoto.html', {'uuid': uuid})
+
+@login_required
+def configuracion(request):
+    config = Configuracion.objects.first()
+    
+    if request.method == 'POST':
+        # Si no existe configuración, la creamos en memoria para llenarla
+        if not config:
+            config = Configuracion()
+
+        # 1. Datos Generales
+        config.nombre_negocio = request.POST.get('nombre_negocio')
+        
+        # 2. Datos Financieros (Convertimos texto a Decimal)
+        try:
+            config.descuento_efectivo_porcentaje = Decimal(request.POST.get('descuento_efectivo', 0))
+            config.recargo_credito_porcentaje = Decimal(request.POST.get('recargo_credito', 0))
+            config.recargo_qr_porcentaje = Decimal(request.POST.get('recargo_qr', 0))
+            
+            config.save()
+            messages.success(request, '¡Configuración guardada exitosamente!')
+        except Exception as e:
+            messages.error(request, f'Error al guardar valores numéricos: {e}')
+        
+        return redirect('configuracion')
+    
+    return render(request, 'core/configuracion.html', {'config': config})
+# ==============================================================================
+# GESTIÓN DE SUCURSALES (LÓGICA NUEVA)
+# ==============================================================================
+
+@login_required
+def seleccionar_sucursal(request, sucursal_id):
+    """Permite al Admin cambiar de visión temporalmente"""
+    if not request.user.is_superuser:
+        messages.error(request, "Solo el administrador puede cambiar de sucursal.")
+        return redirect('dashboard')
+
+    if sucursal_id == 0:
+        # 0 significa "Ver Todo" (Borramos la selección)
+        if 'sucursal_seleccionada_id' in request.session:
+            del request.session['sucursal_seleccionada_id']
+        messages.info(request, "Viendo datos de: TODAS LAS SUCURSALES")
+    else:
+        # Guardamos el ID en la sesión
+        sucursal = get_object_or_404(Sucursal, id=sucursal_id)
+        request.session['sucursal_seleccionada_id'] = sucursal.id
+        messages.success(request, f"Viendo datos de: {sucursal.nombre}")
+
+    return redirect('dashboard')
+
+# --- ABM DE SUCURSALES (Solo Admin) ---
+
+
+class SuperUserCheck(UserPassesTestMixin):
+    def test_func(self):
+        return self.request.user.is_superuser
+
+class SucursalListView(SuperUserCheck, ListView):
+    model = Sucursal
+    template_name = 'core/sucursales_list.html'
+    context_object_name = 'sucursales'
+
+class SucursalCreateView(SuperUserCheck, CreateView):
+    model = Sucursal
+    fields = ['nombre', 'direccion']
+    template_name = 'core/sucursal_form.html'
+    success_url = reverse_lazy('listar_sucursales')
+    
+    def form_valid(self, form):
+        messages.success(self.request, "Sucursal creada correctamente")
+        return super().form_valid(form)
+
+class SucursalUpdateView(SuperUserCheck, UpdateView):
+    model = Sucursal
+    fields = ['nombre', 'direccion']
+    template_name = 'core/sucursal_form.html'
+    success_url = reverse_lazy('listar_sucursales')
+
+@login_required
+def gestionar_usuarios(request):
+    perfil_actual = request.user.perfilusuario
+    mi_negocio = perfil_actual.negocio
+
+    # 1. SEGURIDAD SAAS: Solo los Admins del negocio pueden entrar acá
+    if perfil_actual.rol != 'admin':
+        messages.error(request, "Acceso denegado. Solo el administrador del negocio puede gestionar usuarios.")
+        return redirect('dashboard')
+
+    # 2. PROCESAR CREACIÓN DE USUARIO
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        email = request.POST.get('email')
+        password = request.POST.get('password')
+        sucursal_id = request.POST.get('sucursal_id')
+        rol = request.POST.get('rol')
+
+        try:
+            with transaction.atomic():
+                # A. Creamos el usuario base de Django
+                nuevo_user = User.objects.create_user(username=username, email=email, password=password)
+                
+                # B. Le creamos su PerfilUsuario atado a NUESTRO negocio
+                sucursal_obj = Sucursal.objects.get(id=sucursal_id, negocio=mi_negocio) if sucursal_id else None
+                
+                PerfilUsuario.objects.create(
+                    usuario=nuevo_user,
+                    negocio=mi_negocio, # Obligamos a que pertenezca al mismo negocio que el creador
+                    sucursal=sucursal_obj,
+                    rol=rol
+                )
+            messages.success(request, f"Usuario {username} creado exitosamente.")
+        except Exception as e:
+            messages.error(request, f"Error al crear usuario: Ya existe ese nombre de usuario o faltan datos.")
+            
+        return redirect('gestionar_usuarios')
+
+    # 3. MOSTRAR LA LISTA (Filtrada por Tenant)
+    # Solo vemos los usuarios que pertenecen a ESTE negocio
+    usuarios_negocio = PerfilUsuario.objects.filter(negocio=mi_negocio).select_related('usuario', 'sucursal')
+    mis_sucursales = Sucursal.objects.filter(negocio=mi_negocio)
+
+    context = {
+        'usuarios': usuarios_negocio,
+        'sucursales': mis_sucursales,
+        'negocio': mi_negocio
+    }
+    return render(request, 'core/gestionar_usuarios.html', context)

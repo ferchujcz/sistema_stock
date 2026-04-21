@@ -1,91 +1,105 @@
 {% extends 'core/base.html' %}
 
 {% block content %}
-<h1 class="mb-0">Cuenta Corriente de:</h1>
-<h2 class="text-primary mb-3">{{ cliente.nombre_completo }}</h2>
-
-<div class="row">
-    <div class="col-lg-4 mb-3">
-        <div class="card shadow-sm sticky-top" style="top: 20px;">
-            <div class="card-body">
-                <h5 class="card-title">Saldo Actual</h5>
-                {% if cliente.saldo_actual > 0 %}
-                    <h2 class="card-text text-danger">${{ cliente.saldo_actual|floatformat:2 }}</h2>
-                    <p class="text-muted">(Debe)</p>
-                {% elif cliente.saldo_actual < 0 %}
-                     <h2 class="card-text text-success">${{ cliente.saldo_actual|floatformat:2|slice:"1:" }}</h2>
-                     <p class="text-muted">(A favor)</p>
-                {% else %}
-                    <h2 class="card-text text-success">${{ cliente.saldo_actual|floatformat:2 }}</h2>
-                    <p class="text-muted">(Al día)</p>
-                {% endif %}
-                <p class="small text-muted mb-0">Límite de Crédito: ${{ cliente.limite_credito|floatformat:2 }}</p>
-            </div>
-            <hr class="my-0">
-            <div class="card-body">
-                <h5 class="card-title">Registrar un Pago</h5>
-                <form action="{% url 'registrar_pago_cliente' %}" method="post">
-                    {% csrf_token %}
-                    <input type="hidden" name="cliente_id" value="{{ cliente.id }}">
-                    <div class="mb-3">
-                        <label for="monto" class="form-label">Monto a Pagar ($)</label>
-                        <input type="number" step="0.01" name="monto" id="monto" class="form-control" required>
-                    </div>
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-success">Registrar Pago</button>
-                    </div>
-                </form>
+<div class="container-fluid">
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-8">
+            <h2 class="fw-bold mb-0">{{ cliente.nombre }}</h2>
+            <p class="text-muted">Cuenta Corriente y Pagos</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <div class="card border-danger text-center shadow-sm">
+                <div class="card-body py-2">
+                    <small class="text-uppercase text-muted fw-bold">Saldo Actual (Deuda)</small>
+                    <h2 class="text-danger mb-0 fw-bold">${{ cliente.cuenta_corriente }}</h2>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="col-lg-8">
-        <div class="card shadow-sm mb-3">
-            <div class="card-header">
-                <i class="bi bi-cart-x-fill"></i> Ventas Fiadas (Deuda)
-            </div>
-            <div class="table-responsive">
-                <table class="table table-striped table-sm mb-0">
-                    <thead>
-                        <tr><th>Fecha</th><th>Sucursal</th><th>Total</th><th>Acción</th></tr>
-                    </thead>
-                    <tbody>
-                        {% for venta in ventas_fiadas %}
-                        <tr>
-                            <td>{{ venta.fecha_hora|date:"d/m/Y H:i" }}</td>
-                            <td>{{ venta.sucursal.nombre }}</td>
-                            <td>${{ venta.total|floatformat:2 }}</td>
-                            <td><a href="{% url 'detalle_venta' venta.id %}" class="btn btn-sm btn-outline-primary"><i class="bi bi-eye"></i></a></td>
-                        </tr>
-                        {% empty %}
-                        <tr><td colspan="4" class="text-center text-muted">Sin deudas registradas.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+    <div class="row">
+        <div class="col-lg-8">
+            <ul class="nav nav-tabs mb-3" id="myTab" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" id="ventas-tab" data-bs-toggle="tab" data-bs-target="#ventas" type="button">Ventas Fiadas (Deuda)</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" id="pagos-tab" data-bs-toggle="tab" data-bs-target="#pagos" type="button">Pagos Realizados</button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="myTabContent">
+                <div class="tab-pane fade show active" id="ventas">
+                    <div class="card shadow-sm border-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Detalle</th>
+                                        <th class="text-end">Monto</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for venta in ventas_fiadas %}
+                                    <tr>
+                                        <td>{{ venta.fecha_hora|date:"d/m/Y H:i" }}</td>
+                                        <td>Venta #{{ venta.id }} ({{ venta.detalles.count }} productos)</td>
+                                        <td class="text-end text-danger fw-bold">${{ venta.total }}</td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr><td colspan="3" class="text-center text-muted py-4">Sin deudas registradas.</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-pane fade" id="pagos">
+                    <div class="card shadow-sm border-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Sucursal</th>
+                                        <th class="text-end">Monto Pagado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for pago in pagos_realizados %}
+                                    <tr>
+                                        <td>{{ pago.fecha|date:"d/m/Y H:i" }}</td>
+                                        <td>{{ pago.sucursal.nombre|default:"Central" }}</td>
+                                        <td class="text-end text-success fw-bold">-${{ pago.monto }}</td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr><td colspan="3" class="text-center text-muted py-4">Sin pagos registrados.</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="card shadow-sm">
-            <div class="card-header">
-                <i class="bi bi-wallet-fill"></i> Pagos Realizados (Abonos)
-            </div>
-            <div class="table-responsive">
-                <table class="table table-striped table-sm mb-0">
-                    <thead>
-                        <tr><th>Fecha</th><th>Sucursal</th><th>Monto</th></tr>
-                    </thead>
-                    <tbody>
-                        {% for pago in pagos_realizados %}
-                        <tr>
-                            <td>{{ pago.fecha|date:"d/m/Y H:i" }}</td>
-                            <td>{{ pago.sucursal.nombre }}</td>
-                            <td>${{ pago.monto|floatformat:2 }}</td>
-                        </tr>
-                        {% empty %}
-                        <tr><td colspan="3" class="text-center text-muted">Sin pagos registrados.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+        <div class="col-lg-4">
+            <div class="card shadow border-0 bg-light sticky-top" style="top: 20px;">
+                <div class="card-header bg-success text-white fw-bold">
+                    <i class="bi bi-cash-coin"></i> Registrar Pago
+                </div>
+                <div class="card-body">
+                    <form action="{% url 'registrar_pago_cliente' cliente.id %}" method="POST">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Monto a Pagar ($)</label>
+                            <input type="number" name="monto" class="form-control form-control-lg" placeholder="0.00" step="0.01" required>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100 btn-lg">Confirmar Pago</button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
