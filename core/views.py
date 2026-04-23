@@ -1,5 +1,6 @@
 # core/views.py
 import time
+from django.contrib.auth import logout
 from fuzzywuzzy import fuzz
 import io
 from django.http import HttpResponse
@@ -350,10 +351,19 @@ def editar_stock(request, stock_id):
     sucursal_usuario = obtener_sucursal_usuario(request)
     stock_item = get_object_or_404(Stock, id=stock_id)
 
+# --- VALIDACIÓN DE PERMISOS ---
+    # Solo permitimos si es Superusuario (vos) O si es el Admin del local
+    es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
+    
+    if not request.user.is_superuser and not es_admin_local:
+        messages.error(request, "No tenés permisos de administrador para modificar productos.")
+        return redirect('listar_productos')
+    
+    # Además verificamos que no edite productos de OTRO local (si no es superusuario)
     if not request.user.is_superuser and stock_item.sucursal != sucursal_usuario:
-        messages.error(request, "No tienes permiso para editar stock de otra sucursal.")
-        return redirect('stock_detalle')
-
+        messages.error(request, "Este producto pertenece a otra sucursal.")
+        return redirect('listar_productos')
+    # ------------------------------
     if request.method == 'POST':
         stock_item.cantidad = int(request.POST['cantidad'])
         fecha_vencimiento = request.POST.get('fecha_vencimiento')
@@ -1180,11 +1190,13 @@ def listar_proveedores(request):
 
 @login_required
 def crear_proveedor(request):
-    # --- SOLO SUPERUSUARIO ---
-    if not request.user.is_superuser:
-        messages.error(request, "No tienes permiso para crear proveedores.")
+# --- VALIDACIÓN DE PERMISOS ---
+    es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
+    
+    if not request.user.is_superuser and not es_admin_local:
+        messages.error(request, "Solo los administradores pueden cargar nuevos proveedores.")
         return redirect('listar_proveedores')
-    # --- FIN PERMISO ---
+    # ------------------------------
     if request.method == 'POST':
         dia_semana = request.POST.get('dia_semana_reparto')
         frecuencia = request.POST.get('frecuencia_reparto')
@@ -1200,11 +1212,12 @@ def crear_proveedor(request):
 
 @login_required
 def editar_proveedor(request, proveedor_id):
-    # --- SOLO SUPERUSUARIO ---
-    if not request.user.is_superuser:
-        messages.error(request, "No tienes permiso para editar proveedores.")
-        return redirect('listar_proveedores')
-    # --- FIN PERMISO ---
+# --- ESCUDO DE SEGURIDAD ---
+    es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
+    if not request.user.is_superuser and not es_admin_local:
+        messages.error(request, "Acceso denegado. Función exclusiva para administradores.")
+        return redirect('dashboard')
+    # ---------------------------
     proveedor = get_object_or_404(Proveedor, id=proveedor_id)
     if request.method == 'POST':
         proveedor.nombre = request.POST['nombre']
@@ -1221,11 +1234,13 @@ def editar_proveedor(request, proveedor_id):
 
 @login_required
 def eliminar_proveedor(request, proveedor_id):
-    # --- SOLO SUPERUSUARIO ---
-    if not request.user.is_superuser:
-        messages.error(request, "No tienes permiso para eliminar proveedores.")
-        return redirect('listar_proveedores')
-    # --- FIN PERMISO ---
+    # --- ESCUDO DE SEGURIDAD ---
+    es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
+    if not request.user.is_superuser and not es_admin_local:
+        messages.error(request, "Acceso denegado. Función exclusiva para administradores.")
+        return redirect('dashboard')
+    # ---------------------------
+
     proveedor = get_object_or_404(Proveedor, id=proveedor_id)
     if request.method == 'POST':
         proveedor.delete()
@@ -1405,10 +1420,14 @@ def editar_producto(request, producto_id):
 @login_required
 def eliminar_producto(request, producto_id):
     # --- SOLO SUPERUSUARIO ---
-    if not request.user.is_superuser:
-        messages.error(request, "No tienes permiso para eliminar productos.")
-        return redirect('listar_productos')
-    # --- FIN PERMISO ---
+    # --- ESCUDO DE SEGURIDAD ---
+    es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
+    if not request.user.is_superuser and not es_admin_local:
+        messages.error(request, "Acceso denegado. Función exclusiva para administradores.")
+        return redirect('dashboard')
+    # ---------------------------
+
+    
     producto = get_object_or_404(Producto, id=producto_id)
     if request.method == 'POST':
         producto.delete()
@@ -1422,11 +1441,13 @@ def listar_categorias(request):
 
 @login_required
 def crear_categoria(request):
-    # --- SOLO SUPERUSUARIO ---
-    if not request.user.is_superuser:
-        messages.error(request, "No tienes permiso para crear categorías.")
-        return redirect('listar_categorias')
-    # --- FIN PERMISO ---
+    # --- ESCUDO DE SEGURIDAD ---
+    es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
+    if not request.user.is_superuser and not es_admin_local:
+        messages.error(request, "Acceso denegado. Función exclusiva para administradores.")
+        return redirect('dashboard')
+    # ---------------------------
+
     if request.method == 'POST':
         Categoria.objects.create(
             nombre=request.POST['nombre'],
@@ -1438,11 +1459,13 @@ def crear_categoria(request):
 
 @login_required
 def editar_categoria(request, categoria_id):
-    # --- SOLO SUPERUSUARIO ---
-    if not request.user.is_superuser:
-        messages.error(request, "No tienes permiso para editar categorías.")
-        return redirect('listar_categorias')
-    # --- FIN PERMISO ---
+    # --- ESCUDO DE SEGURIDAD ---
+    es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
+    if not request.user.is_superuser and not es_admin_local:
+        messages.error(request, "Acceso denegado. Función exclusiva para administradores.")
+        return redirect('dashboard')
+    # ---------------------------
+
     categoria = get_object_or_404(Categoria, id=categoria_id)
     if request.method == 'POST':
         categoria.nombre = request.POST['nombre']
@@ -1454,11 +1477,13 @@ def editar_categoria(request, categoria_id):
 
 @login_required
 def eliminar_categoria(request, categoria_id):
-    # --- SOLO SUPERUSUARIO ---
-    if not request.user.is_superuser:
-        messages.error(request, "No tienes permiso para eliminar categorías.")
-        return redirect('listar_categorias')
-    # --- FIN PERMISO ---
+    # --- ESCUDO DE SEGURIDAD ---
+    es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
+    if not request.user.is_superuser and not es_admin_local:
+        messages.error(request, "Acceso denegado. Función exclusiva para administradores.")
+        return redirect('dashboard')
+    # ---------------------------
+
     categoria = get_object_or_404(Categoria, id=categoria_id)
     if request.method == 'POST':
         categoria.delete()
@@ -1774,6 +1799,12 @@ def sugerencias_compra(request):
 # ==============================================================================
 @login_required
 def reportes_dashboard(request):
+    # --- ESCUDO DE SEGURIDAD ---
+    es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
+    if not request.user.is_superuser and not es_admin_local:
+        messages.error(request, "Acceso denegado. Función exclusiva para administradores.")
+        return redirect('dashboard')
+    # ---------------------------
     # 1. Obtener parámetros de filtro (GET)
     fecha_inicio_str = request.GET.get('fecha_inicio')
     fecha_fin_str = request.GET.get('fecha_fin')
@@ -2014,7 +2045,12 @@ def pantalla_scanner_remoto(request, uuid):
 @login_required
 def configuracion(request):
     config = Configuracion.objects.first()
-    
+    # --- ESCUDO DE SEGURIDAD ---
+    es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
+    if not request.user.is_superuser and not es_admin_local:
+        messages.error(request, "Acceso denegado. Función exclusiva para administradores.")
+        return redirect('dashboard')
+    # ---------------------------
     if request.method == 'POST':
         # Si no existe configuración, la creamos en memoria para llenarla
         if not config:
@@ -2091,12 +2127,19 @@ class SucursalUpdateView(SuperUserCheck, UpdateView):
 
 @login_required
 def gestionar_usuarios(request):
-    perfil_actual = request.user.perfilusuario
-    mi_negocio = perfil_actual.negocio
+    # --- ESCUDO DE SEGURIDAD ---
+    es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
+    if not request.user.is_superuser and not es_admin_local:
+        messages.error(request, "Acceso denegado. Función exclusiva para administradores.")
+        return redirect('dashboard')
+    # ---------------------------
 
-    # 1. SEGURIDAD SAAS: Solo los Admins del negocio pueden entrar acá
-    if perfil_actual.rol != 'admin':
-        messages.error(request, "Acceso denegado. Solo el administrador del negocio puede gestionar usuarios.")
+    # Tratamos de buscar el negocio del usuario actual
+    mi_negocio = None
+    if hasattr(request.user, 'perfilusuario'):
+        mi_negocio = request.user.perfilusuario.negocio
+    elif not request.user.is_superuser:
+        messages.error(request, "Tu usuario no está vinculado a ningún negocio.")
         return redirect('dashboard')
 
     # 2. PROCESAR CREACIÓN DE USUARIO
@@ -2192,3 +2235,8 @@ def crear_producto_ajax(request):
             return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
             
     return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
+
+def logout_view(request):
+    logout(request)
+    messages.success(request, "Sesión cerrada correctamente. ¡Hasta pronto!")
+    return redirect('login') # O el nombre de tu pantalla de login

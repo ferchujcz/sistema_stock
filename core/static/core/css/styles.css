@@ -309,53 +309,38 @@ body {
 }
 /* --- ARREGLO FINAL DE ESTRUCTURA (MENU + CONTENIDO) --- */
 
-#sidebar-wrapper {
-    /* 1. Dimensiones Fijas (Para que no se achique nunca) */
-    min-width: 280px; 
-    max-width: 280px;
-    width: 280px;
-    
-    /* 2. Comportamiento de Scroll */
-    height: 100vh;        /* Ocupa toda la altura de la pantalla */
-    overflow-y: auto;     /* Activa la ruedita si falta espacio */
-    overflow-x: hidden;   /* Oculta scroll horizontal */
-    
-    /* 3. Posición (Lo clavamos a la izquierda) */
-    position: fixed;      
-    left: 0;
-    top: 0;
-    z-index: 1000;
-    
-    /* 4. Estética */
-    transition: margin 0.25s ease-out;
-    border-right: 1px solid rgba(0,0,0,0.1); /* Borde sutil separador */
-}
+/* Pantallas Grandes (PC/Tablet) */
+@media (min-width: 769px) {
+    #sidebar-wrapper {
+        min-width: 280px; 
+        max-width: 280px;
+        width: 280px;
+        height: 100vh;        
+        overflow-y: auto;     
+        overflow-x: hidden;   
+        position: fixed;      
+        left: 0;
+        top: 0;
+        z-index: 1000;
+        transition: margin 0.25s ease-out;
+        border-right: 1px solid rgba(0,0,0,0.1); 
+    }
 
-/* --- EL CONTENIDO PRINCIPAL (Dashboard, Ventas, etc.) --- */
-#page-content-wrapper {
-    /* 1. Lo empujamos a la derecha para que no quede tapado por el menú */
-    margin-left: 280px; /* Tiene que medir lo mismo que el sidebar */
-    
-    /* 2. Ancho fluido */
-    width: calc(100% - 280px); /* Ocupa el resto de la pantalla */
-    min-height: 100vh;
-    transition: all 0.25s ease-out;
-}
+    #page-content-wrapper {
+        margin-left: 280px; 
+        width: calc(100% - 280px); 
+        min-height: 100vh;
+        transition: margin 0.25s ease-out;
+    }
 
-/* --- LÓGICA DE OCULTAR MENÚ (Cuando tocas las 3 rayitas) --- */
-#wrapper.toggled #sidebar-wrapper {
-    margin-left: -280px; /* Se esconde a la izquierda */
-}
-
-#wrapper.toggled #page-content-wrapper {
-    margin-left: 0;      /* El contenido se estira */
-    width: 100%;
+    #wrapper.toggled #sidebar-wrapper { margin-left: -280px; }
+    #wrapper.toggled #page-content-wrapper { margin-left: 0; width: 100%; }
 }
 
 /* --- ARREGLO DE TEXTO CORTADO EN EL MENÚ --- */
 #sidebar-wrapper .list-group-item {
-    white-space: nowrap;      /* Texto en una sola línea */
-    overflow: hidden;         /* Esconder sobrante */
-    text-overflow: ellipsis;  /* Puntos suspensivos... */
-    padding-right: 20px;      /* Espacio para que no toque la barra de scroll */
+    white-space: nowrap;      
+    overflow: hidden;         
+    text-overflow: ellipsis;  
+    padding-right: 20px;      
 }
