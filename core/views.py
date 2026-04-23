@@ -324,8 +324,26 @@ def agregar_stock(request):
         messages.success(request, f"Stock añadido para {producto.nombre}. ¡Listo para el siguiente!")
         return redirect('agregar_stock')
 
+    # --- LA MAGIA NUEVA: EL BUSCADOR ---
+    productos = None # Por defecto no mostramos nada
+    query = request.GET.get('q') # Atrapamos lo que escribió o escaneó el usuario
+
+    if query:
+        # Buscamos si el texto coincide con el nombre o con el código de barras
+        productos = Producto.objects.filter(
+            Q(nombre__icontains=query) | Q(codigo_barras__icontains=query)
+        )
+        
+        # IMPORTANTE: Si en tu modelo 'Producto' tenés un campo que los separa por negocio/sucursal,
+        # descomentá la línea de abajo para que un kiosco no vea los productos del otro:
+        # productos = productos.filter(sucursal=sucursal_usuario)
+
+    # Armamos el paquete de datos y se lo mandamos al HTML
+    context = {
+        'productos': productos,
+    }
     
-    return render(request, 'core/agregar_stock.html')
+    return render(request, 'core/agregar_stock.html', context)
 
 @login_required
 def editar_stock(request, stock_id):
