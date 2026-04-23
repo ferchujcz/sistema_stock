@@ -89,7 +89,7 @@ urlpatterns = [
     path('sucursales/', views.SucursalListView.as_view(), name='listar_sucursales'),
     path('sucursales/nueva/', views.SucursalCreateView.as_view(), name='crear_sucursal'),
     path('sucursales/editar/<int:pk>/', views.SucursalUpdateView.as_view(), name='editar_sucursal'),
-
+    path('sumar-stock/<int:producto_id>/', views.sumar_stock_producto, name='sumar_stock_producto'),
 
 
 ]

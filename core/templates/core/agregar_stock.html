@@ -65,7 +65,7 @@
                             <td class="ps-4 fw-bold">{{ p.nombre }}</td>
                             <td><span class="badge bg-secondary">{{ p.codigo_barras }}</span></td>
                             <td>{{ p.lotes.count }} lotes</td> <td>
-                                <a href="{% url 'editar_stock' p.id %}" class="btn btn-sm btn-success">
+                                <a href="{% url 'sumar_stock_producto' p.id %}" class="btn btn-sm btn-success">
                                     <i class="bi bi-plus-lg"></i> Sumar Stock
                                 </a>
                             </td>

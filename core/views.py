@@ -2138,3 +2138,26 @@ def gestionar_usuarios(request):
         'negocio': mi_negocio
     }
     return render(request, 'core/gestionar_usuarios.html', context)
+
+@login_required
+def sumar_stock_producto(request, producto_id):
+    sucursal_usuario = obtener_sucursal_usuario(request)
+    producto = get_object_or_404(Producto, id=producto_id)
+
+    if request.method == 'POST':
+        cantidad = int(request.POST['cantidad'])
+        fecha_vencimiento = request.POST.get('fecha_vencimiento')
+        ubicacion = request.POST.get('ubicacion', 'deposito')
+
+        # Creamos el lote nuevo (ingreso de mercadería)
+        Stock.objects.create(
+            producto=producto,
+            cantidad=cantidad,
+            fecha_vencimiento=fecha_vencimiento if fecha_vencimiento else None,
+            ubicacion=ubicacion,
+            sucursal=sucursal_usuario
+        )
+        messages.success(request, f"¡Se sumaron {cantidad} unidades a {producto.nombre}!")
+        return redirect('agregar_stock') # Lo devolvemos al buscador para que siga pistoleando
+
+    return render(request, 'core/sumar_stock_form.html', {'producto': producto})
