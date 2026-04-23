@@ -10,6 +10,29 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{% static 'core/css/styles.css' %}">
+    
+    <style>
+        /* Reglas mágicas para Celulares */
+        @media (max-width: 768px) {
+            #sidebar-wrapper {
+                margin-left: -250px; /* Esconde el menú fuera de la pantalla */
+                position: fixed;
+                height: 100vh;
+                z-index: 1050;
+                transition: all 0.3s ease;
+                box-shadow: 5px 0px 10px rgba(0,0,0,0.2);
+                background-color: var(--bs-body-bg); /* Evita que sea transparente */
+            }
+            /* Cuando tocás el botón de menú, esta clase lo hace aparecer */
+            #wrapper.toggled #sidebar-wrapper {
+                margin-left: 0;
+            }
+            /* Evita que el contenido principal se achique o rompa */
+            #page-content-wrapper {
+                min-width: 100vw;
+            }
+        }
+    </style>
 </head>
 <body>
 
@@ -29,12 +52,12 @@
                         <i class="bi bi-building me-2"></i>Sucursales <i class="bi bi-chevron-down ms-auto small"></i>
                     </a>
                     <div class="collapse" id="menuSucursales">
-                        <a href="{% url 'seleccionar_sucursal' 0 %}" class="sub-item ps-5 {% if not request.session.sucursal_seleccionada_id %}text-warning{% endif %}">
+                        <a href="{% url 'cambiar_sucursal_sesion' 0 %}" class="sub-item ps-5 {% if not request.session.sucursal_seleccionada_id %}text-warning{% endif %}">
                             <i class="bi bi-globe small"></i> Ver Todo (Global)
                         </a>
 
                         {% for suc in todas_las_sucursales_contexto %} 
-                            <a href="{% url 'seleccionar_sucursal' suc.id %}" 
+                            <a href="{% url 'cambiar_sucursal_sesion' suc.id %}" 
                             class="sub-item ps-5 {% if request.session.sucursal_seleccionada_id == suc.id %}text-primary fw-bold{% endif %}">
                                 {{ suc.nombre }}
                             </a>
@@ -91,27 +114,24 @@
                     </a>
                 </div>
               
-                    <a href="#menuProveedores" class="list-group-item list-group-item-action bg-transparent second-text fw-bold" data-bs-toggle="collapse">
-                        <i class="bi bi-truck me-2"></i>Proveedores <i class="bi bi-chevron-down ms-auto small"></i>
+                <a href="#menuProveedores" class="list-group-item list-group-item-action bg-transparent second-text fw-bold" data-bs-toggle="collapse">
+                    <i class="bi bi-truck me-2"></i>Proveedores <i class="bi bi-chevron-down ms-auto small"></i>
+                </a>
+                <div class="collapse" id="menuProveedores">
+                    <a href="{% url 'sugerencias_compra' %}" class="sub-item ps-5 text-warning fw-bold">
+                        <i class="bi bi-cart-plus-fill"></i> Sugerencias a Pedir
                     </a>
-                    <div class="collapse" id="menuProveedores">
-                        <a href="{% url 'sugerencias_compra' %}" class="sub-item ps-5 text-warning fw-bold">
-                            <i class="bi bi-cart-plus-fill"></i> Sugerencias a Pedir
-                        </a>
-                        <a href="{% url 'listar_proveedores' %}" class="sub-item ps-5">
-                            <i class="bi bi-list-task"></i> Listado y Cta. Cte.
-                        </a>
-
-                        <a href="{% url 'registrar_factura_proveedor' %}" class="sub-item ps-5">
-                            <i class="bi bi-receipt"></i> Cargar Factura Compra
-                        </a>
-                        <a href="{% url 'crear_proveedor' %}" class="sub-item ps-5 text-success">
-                            <i class="bi bi-person-plus"></i> Nuevo Proveedor
-                        </a>
-
-                    </div>
+                    <a href="{% url 'listar_proveedores' %}" class="sub-item ps-5">
+                        <i class="bi bi-list-task"></i> Listado y Cta. Cte.
+                    </a>
+                    <a href="{% url 'registrar_factura_proveedor' %}" class="sub-item ps-5">
+                        <i class="bi bi-receipt"></i> Cargar Factura Compra
+                    </a>
+                    <a href="{% url 'crear_proveedor' %}" class="sub-item ps-5 text-success">
+                        <i class="bi bi-person-plus"></i> Nuevo Proveedor
+                    </a>
+                </div>
              
-
                 <a href="#menuReportes" class="list-group-item list-group-item-action bg-transparent second-text fw-bold" data-bs-toggle="collapse">
                     <i class="bi bi-bar-chart-line me-2"></i>Reportes <i class="bi bi-chevron-down ms-auto small"></i>
                 </a>
@@ -127,7 +147,7 @@
                     </a>
                     <a href="{% url 'cerrar_turno' %}" class="sub-item ps-5 text-danger fw-bold">
                          <i class="bi bi-door-closed-fill"></i> Cierre de Caja (Turno)
-                </a>
+                    </a>
                 </div>
 
                 <a href="#menuClientes" class="list-group-item list-group-item-action bg-transparent second-text fw-bold" data-bs-toggle="collapse">
@@ -219,6 +239,18 @@
                 icon.classList.replace('bi-sun-fill', 'bi-moon-stars-fill');
                 document.getElementById('sidebar-wrapper').classList.remove('dark-mode-sidebar');
             }
+        }
+
+        // NUEVO: Auto-cerrar el menú en celulares al hacer clic
+        if (window.innerWidth <= 768) {
+            const menuLinks = document.querySelectorAll('#sidebar-wrapper a');
+            menuLinks.forEach(link => {
+                link.addEventListener('click', () => {
+                    if (!link.hasAttribute('data-bs-toggle')) {
+                        el.classList.remove("toggled");
+                    }
+                });
+            });
         }
     </script>
     {% block javascript %}{% endblock %}

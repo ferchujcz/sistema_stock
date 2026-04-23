@@ -87,17 +87,92 @@
 <style>
     .hover-shadow:hover { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: all 0.2s; }
 </style>
+
+<div class="modal fade" id="modalNuevoProducto" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">✨ Crear Producto Nuevo</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="formNuevoProducto">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Nombre del Producto</label>
+                        <input type="text" name="nombre" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Código de Barras</label>
+                        <input type="text" name="codigo_barras" id="modal_codigo" class="form-control" readonly>
+                    </div>
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Precio Venta</label>
+                            <input type="number" name="precio_venta" class="form-control" step="0.01" required>
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label">Categoría</label>
+                            <select name="categoria" class="form-select">
+                                {% for cat in categorias %}
+                                <option value="{{ cat.id }}">{{ cat.nombre }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar y Continuar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block javascript %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        const buscador = document.getElementById('buscador-stock');
+
+        // Al escanear...
         iniciarScanner(function(codigo) {
             if (!codigo) return;
-            const buscador = document.getElementById('buscador-stock');
             buscador.value = codigo;
-            document.getElementById('form-buscador').submit(); 
+            verificarProducto(codigo);
         });
+
+        // Función para ver si existe o abrir modal
+        function verificarProducto(codigo) {
+            // Si el cartel de "No se encontró" está visible, abrimos el modal
+            const alertNoExiste = document.querySelector('.alert-warning');
+            if (alertNoExiste) {
+                document.getElementById('modal_codigo').value = codigo;
+                new bootstrap.Modal(document.getElementById('modalNuevoProducto')).show();
+            }
+        }
+
+        // Guardar por AJAX
+        document.getElementById('formNuevoProducto').onsubmit = function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            
+            fetch("{% url 'crear_producto_ajax' %}", {
+                method: "POST",
+                body: formData,
+                headers: { "X-CSRFToken": "{{ csrf_token }}" }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Si se creó, lo mandamos directo a sumar stock
+                    window.location.href = `/sumar-stock/${data.id}/`;
+                } else {
+                    alert("Error: " + data.message);
+                }
+            });
+        };
     });
 </script>
 {% endblock %}

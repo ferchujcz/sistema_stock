@@ -2161,3 +2161,34 @@ def sumar_stock_producto(request, producto_id):
         return redirect('agregar_stock') # Lo devolvemos al buscador para que siga pistoleando
 
     return render(request, 'core/sumar_stock_form.html', {'producto': producto})
+
+@login_required
+def crear_producto_ajax(request):
+    if request.method == 'POST':
+        try:
+            nombre = request.POST.get('nombre')
+            codigo = request.POST.get('codigo_barras')
+            precio = request.POST.get('precio_venta', 0)
+            categoria_id = request.POST.get('categoria')
+            
+            # Buscamos la sucursal del usuario para asignarlo
+            sucursal = obtener_sucursal_usuario(request)
+            
+            nuevo_p = Producto.objects.create(
+                nombre=nombre,
+                codigo_barras=codigo,
+                precio_venta=precio,
+                categoria_id=categoria_id,
+                sucursal=sucursal # Para que sea Multi-Tenant
+            )
+            
+            return JsonResponse({
+                'status': 'success',
+                'id': nuevo_p.id,
+                'nombre': nuevo_p.nombre,
+                'codigo': nuevo_p.codigo_barras
+            })
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+            
+    return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
