@@ -20,11 +20,15 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-p0t@(j!*c2i+nnh7g0l3@
 # Lo ponemos en True para desarrollo local
 DEBUG = os.environ.get('DJANGO_DEBUG', '') != 'False'
 
-# Permitimos acceso desde cualquier IP (Tu PC, Tu Celular, Ngrok)
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['178.105.42.34', 'kioscos-saas.duckdns.org', 'localhost', '127.0.0.1']
+
+
+
 
 # Configuración para Ngrok y conexiones externas
 CSRF_TRUSTED_ORIGINS = [
+    'http://178.105.42.34', 
+    'https://kioscos-saas.duckdns.org'
     'https://*.ngrok-free.app',
     'https://*.ngrok-free.dev',  # <--- ESTA ES LA QUE TE FALTABA
     'https://*.ngrok.io',
