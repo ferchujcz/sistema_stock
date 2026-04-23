@@ -2239,4 +2239,4 @@ def crear_producto_ajax(request):
 def logout_view(request):
     logout(request)
     messages.success(request, "Sesión cerrada correctamente. ¡Hasta pronto!")
-    return redirect('dashboard') # O el nombre de tu pantalla de login
+    return redirect('login.html') # O el nombre de tu pantalla de login
