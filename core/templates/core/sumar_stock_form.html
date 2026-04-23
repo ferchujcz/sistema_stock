@@ -1,0 +1,53 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h4 class="mb-0"><i class="bi bi-box-arrow-in-down"></i> Ingresar Mercadería</h4>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Producto Seleccionado</label>
+                        <input type="text" class="form-control fw-bold" value="{{ producto.nombre }}" disabled>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="cantidad" class="form-label">Cantidad a sumar</label>
+                            <input type="number" name="cantidad" id="cantidad" class="form-control" required autofocus>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="fecha_vencimiento" class="form-label">Vencimiento (Opcional)</label>
+                            <input type="date" name="fecha_vencimiento" id="fecha_vencimiento" class="form-control">
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="ubicacion" class="form-label">Ubicación</label>
+                        <select name="ubicacion" id="ubicacion" class="form-select">
+                            <option value="">Depósito (Fondo)</option>
+                            <option value="">Góndola (Frente)</option>
+                        </select>
+                    </div>
+                    
+                    <hr>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'agregar_stock' %}" class="btn btn-secondary btn-lg">
+                            <i class="bi bi-arrow-left"></i> Volver
+                        </a>
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="bi bi-save"></i> Guardar Ingreso
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
