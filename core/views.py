@@ -384,7 +384,6 @@ def editar_producto(request, producto_id):
         'categorias': categorias,
         'categorias_json': categorias_json
     })
-
 @login_required
 def reponer_gondola(request):
     sucursal_usuario = obtener_sucursal_usuario(request)
