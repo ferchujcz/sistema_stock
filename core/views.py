@@ -2246,6 +2246,35 @@ def crear_producto_ajax(request):
             
     return JsonResponse({'status': 'error', 'message': 'Método no permitido'}, status=405)
 
+@login_required
+def editar_stock(request, stock_id):
+    sucursal_usuario = obtener_sucursal_usuario(request)
+    stock_item = get_object_or_404(Stock, id=stock_id)
+
+    # --- ESCUDO DE SEGURIDAD ---
+    es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
+    
+    if not request.user.is_superuser and not es_admin_local:
+        messages.error(request, "No tenés permisos de administrador para modificar el stock.")
+        return redirect('listar_productos')
+    
+    # Verificamos que no edite stock de OTRO local (si no es superusuario)
+    if not request.user.is_superuser and stock_item.sucursal != sucursal_usuario:
+        messages.error(request, "Este producto pertenece a otra sucursal.")
+        return redirect('listar_productos')
+    # ---------------------------
+
+    if request.method == 'POST':
+        stock_item.cantidad = int(request.POST['cantidad'])
+        fecha_vencimiento = request.POST.get('fecha_vencimiento')
+        stock_item.fecha_vencimiento = fecha_vencimiento if fecha_vencimiento else None
+        stock_item.ubicacion = request.POST['ubicacion']
+        stock_item.save()
+        messages.success(request, f"Lote de {stock_item.producto.nombre} actualizado.")
+        return redirect('detalle_producto_lotes', producto_id=stock_item.producto.id)
+
+    return render(request, 'core/editar_stock.html', {'stock_item': stock_item})
+
 def logout_view(request):
     logout(request)
     messages.success(request, "Sesión cerrada correctamente. ¡Hasta pronto!")
