@@ -1396,35 +1396,6 @@ def crear_producto(request):
     }
     return render(request, 'core/form_producto.html', context)
 
-@login_required
-def editar_producto(request, producto_id):
-    # --- SOLO SUPERUSUARIO ---
-    if not request.user.is_superuser:
-        messages.error(request, "No tienes permiso para editar productos.")
-        return redirect('listar_productos')
-    # --- FIN PERMISO ---
-    producto = get_object_or_404(Producto, id=producto_id)
-    if request.method == 'POST':
-        producto.nombre = request.POST['nombre']
-        producto.codigo_barras = request.POST.get('codigo_barras')
-        producto.proveedor_id = request.POST.get('proveedor') or None
-        producto.categoria_id = request.POST.get('categoria') or None
-        producto.costo = request.POST['costo']
-        producto.precio_venta = request.POST['precio_venta']
-        producto.stock_minimo = request.POST.get('stock_minimo', 5) or 5
-        producto.save()
-        producto.es_perecedero = request.POST.get('es_perecedero') == 'on'
-        producto.es_favorito = request.POST.get('es_favorito') == 'on'
-        producto.save()
-        messages.success(request, '¡Producto actualizado!')
-        return redirect('listar_productos')
-    
-    proveedores = Proveedor.objects.all().order_by('nombre')
-    categorias = Categoria.objects.all().order_by('nombre')
-    categorias_json = json.dumps(
-        {cat.id: float(cat.margen_ganancia_porcentaje) for cat in categorias}
-    )
-    return render(request, 'core/form_producto.html', {'producto': producto, 'proveedores': proveedores, 'categorias': categorias,'categorias_json': categorias_json})
 
 @login_required
 def eliminar_producto(request, producto_id):
