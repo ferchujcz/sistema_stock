@@ -174,25 +174,37 @@ def dashboard(request):
 
 @login_required
 def admin_stock_por_sucursal(request, sucursal_id):
-    # --- SOLO SUPERUSUARIO ---
-    if not request.user.is_superuser:
-        messages.error(request, "Acceso denegado.")
+    # --- ESCUDO DE SEGURIDAD (Permite Superuser y Admin de Local) ---
+    es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
+    if not request.user.is_superuser and not es_admin_local:
+        messages.error(request, "Acceso denegado. Función exclusiva para administradores.")
         return redirect('dashboard')
-    # --- FIN PERMISO ---
+    # ----------------------------------------------------------------
 
     sucursal = get_object_or_404(Sucursal, id=sucursal_id)
     hoy = timezone.now().date()
     hace_30_dias = hoy - timedelta(days=30)
 
-    # Usamos la sucursal de la URL para filtrar
+    # 1. Traemos la lista de productos con su stock anotado (Un solo viaje a la BD)
     productos_con_stock = Producto.objects.filter(
         lotes__cantidad__gt=0,
-        lotes__sucursal=sucursal # <-- Filtro por sucursal seleccionada
+        lotes__sucursal=sucursal
     ).annotate(
         total_gondola=Sum(Case(When(lotes__ubicacion='gondola', lotes__sucursal=sucursal, then='lotes__cantidad'), default=0, output_field=IntegerField())),
         total_deposito=Sum(Case(When(lotes__ubicacion='deposito', lotes__sucursal=sucursal, then='lotes__cantidad'), default=0, output_field=IntegerField())),
         vencimiento_proximo=Min('lotes__fecha_vencimiento', filter=Q(lotes__sucursal=sucursal))
     ).distinct()
+
+    # --- OPTIMIZACIÓN: EL MAPA DE VENTAS (Elimina el N+1) ---
+    # Traemos TODAS las ventas de esta sucursal en un solo viaje gigante a EEUU
+    ventas_dict = DetalleVenta.objects.filter(
+        venta__sucursal=sucursal,
+        venta__fecha_hora__gte=hace_30_dias
+    ).values('producto_id').annotate(total=Sum('cantidad'))
+    
+    # Creamos el mapa en la memoria RAM del servidor en Alemania
+    ventas_map = {item['producto_id']: item['total'] for item in ventas_dict}
+    # -------------------------------------------------------
 
     info_consolidada = []
     for producto in productos_con_stock:
@@ -200,10 +212,9 @@ def admin_stock_por_sucursal(request, sucursal_id):
         if producto.vencimiento_proximo:
             dias_para_vencer = (producto.vencimiento_proximo - hoy).days
 
-        ventas_30_dias = DetalleVenta.objects.filter(
-            producto=producto, venta__fecha_hora__gte=hace_30_dias
-        ).aggregate(total_vendido=Sum('cantidad'))['total_vendido'] or 0
-        velocidad_venta = ventas_30_dias / 30.0 if ventas_30_dias > 0 else 0 # Evitar división por cero
+        # Búsqueda instantánea en la RAM del servidor
+        ventas_30_dias = ventas_map.get(producto.id, 0)
+        velocidad_venta = ventas_30_dias / 30.0 if ventas_30_dias > 0 else 0 
 
         en_riesgo = False
         stock_total = (producto.total_gondola or 0) + (producto.total_deposito or 0)
@@ -213,22 +224,22 @@ def admin_stock_por_sucursal(request, sucursal_id):
                 en_riesgo = True
 
         info_consolidada.append({
-            'producto': producto, 'total_gondola': producto.total_gondola,
+            'producto': producto, 
+            'total_gondola': producto.total_gondola,
             'total_deposito': producto.total_deposito,
             'vencimiento_proximo': producto.vencimiento_proximo,
             'dias_para_vencer': dias_para_vencer,
             'dias_para_vencer_abs': abs(dias_para_vencer) if dias_para_vencer is not None else None,
-            'en_riesgo': en_riesgo, 'velocidad_venta': round(velocidad_venta, 2)
+            'en_riesgo': en_riesgo, 
+            'velocidad_venta': round(velocidad_venta, 2)
         })
+
     info_consolidada.sort(key=lambda x: (x['dias_para_vencer'] is None, x['dias_para_vencer'] if x['dias_para_vencer'] is not None else float('inf')))
-    # Usaremos la misma plantilla que stock_detalle, pero pasándole la sucursal que estamos viendo
+    
     return render(request, 'core/stock_detalle.html', {
         'info_consolidada': info_consolidada,
-        'sucursal_seleccionada': sucursal # Para mostrar el nombre en la plantilla
+        'sucursal_seleccionada': sucursal 
     })
-
-
-
 
 @login_required
 def stock_detalle(request):
@@ -250,26 +261,32 @@ def stock_detalle(request):
         vencimiento_proximo=Min('lotes__fecha_vencimiento', filter=Q(lotes__sucursal=sucursal_usuario)) if sucursal_usuario else Min('lotes__fecha_vencimiento')
     ).distinct()
 
+    # --- EL ARREGLO MÁGICO: Un solo viaje a la base de datos ---
+    ventas_query = DetalleVenta.objects.filter(venta__fecha_hora__gte=hace_30_dias)
+    if sucursal_usuario:
+        ventas_query = ventas_query.filter(venta__sucursal=sucursal_usuario)
+        
+    # Traemos todo y lo convertimos en un diccionario super rápido de leer
+    ventas_dict = ventas_query.values('producto_id').annotate(total=Sum('cantidad'))
+    ventas_map = {item['producto_id']: item['total'] for item in ventas_dict}
+    # ------------------------------------------------------------
+
     info_consolidada = []
     for producto in productos_con_stock:
         dias_para_vencer = None
         if producto.vencimiento_proximo:
             dias_para_vencer = (producto.vencimiento_proximo - hoy).days
-        ventas_30_dias = DetalleVenta.objects.filter(
-            producto=producto, venta__fecha_hora__gte=hace_30_dias
-        ).aggregate(total_vendido=Sum('cantidad'))['total_vendido'] or 0
-        velocidad_venta = ventas_30_dias / 30.0 if ventas_30_dias > 0 else 0 # Evitar división por cero
+            
+        # En vez de consultar la base de datos, leemos el diccionario local (Demora 0.0001 segundos)
+        ventas_30_dias = ventas_map.get(producto.id, 0)
+        velocidad_venta = ventas_30_dias / 30.0 if ventas_30_dias > 0 else 0 
 
-        
         stock_total = (producto.total_gondola or 0) + (producto.total_deposito or 0)
         en_riesgo = False
         if stock_total == 0:
-             en_riesgo = True # ¡Alerta Roja!
-        
-        # Caso 2: Stock bajo (menor al mínimo)
+             en_riesgo = True 
         elif stock_total < producto.stock_minimo:
-             en_riesgo = True # Alerta Roja     
-
+             en_riesgo = True     
         elif velocidad_venta > 0 and dias_para_vencer is not None and dias_para_vencer > 0:
             dias_de_stock_restante = stock_total / velocidad_venta
             if dias_de_stock_restante > dias_para_vencer:
@@ -284,10 +301,8 @@ def stock_detalle(request):
             'en_riesgo': en_riesgo, 'velocidad_venta': round(velocidad_venta, 2)
         })
 
-    info_consolidada.sort(key=lambda x: (x['dias_para_vencer'] is None, x['dias_para_vencer'] if x['dias_para_vencer'] is not None else float('inf'))) # Ordenar nulos al final
+    info_consolidada.sort(key=lambda x: (x['dias_para_vencer'] is None, x['dias_para_vencer'] if x['dias_para_vencer'] is not None else float('inf'))) 
     return render(request, 'core/stock_detalle.html', {'info_consolidada': info_consolidada, 'sucursal_actual': sucursal_usuario})
-
-
 
 def importar_stock(request):
     query = request.GET.get('q')
