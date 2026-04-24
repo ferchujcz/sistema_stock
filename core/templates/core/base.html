@@ -12,7 +12,6 @@
     <link rel="stylesheet" href="{% static 'core/css/styles.css' %}">
     
     <style>
-        /* Reglas mágicas para Celulares */
         @media (max-width: 768px) {
             #sidebar-wrapper {
                 margin-left: -280px; 
@@ -23,14 +22,11 @@
                 box-shadow: 5px 0px 10px rgba(0,0,0,0.2);
                 background-color: var(--bs-body-bg); 
             }
-            #wrapper.toggled #sidebar-wrapper {
-                margin-left: 0;
-            }
-            #page-content-wrapper {
-                margin-left: 0 !important; /* Elimina el empuje fantasma */
-                min-width: 100vw;
-            }
+            #wrapper.toggled #sidebar-wrapper { margin-left: 0; }
+            #page-content-wrapper { margin-left: 0 !important; min-width: 100vw; }
         }
+        /* Subtítulos del menú */
+        .menu-category { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.1em; color: #6c757d; font-weight: 700; padding: 1rem 1.5rem 0.5rem; }
     </style>
 </head>
 <body>
@@ -41,139 +37,75 @@
                 <i class="bi bi-shop me-2"></i>{{ nombre_negocio }}
             </div>
             
-            <div class="list-group list-group-flush my-3">
+            <div class="list-group list-group-flush my-2">
                 <a href="{% url 'dashboard' %}" class="list-group-item list-group-item-action bg-transparent second-text active">
                     <i class="bi bi-speedometer2 me-2"></i>Dashboard
                 </a>
 
-                {% if user.is_superuser %}
-                    <a href="#menuSucursales" class="list-group-item list-group-item-action bg-transparent second-text fw-bold" data-bs-toggle="collapse">
-                        <i class="bi bi-building me-2"></i>Sucursales <i class="bi bi-chevron-down ms-auto small"></i>
-                    </a>
-                    <div class="collapse" id="menuSucursales">
-                        <a href="{% url 'cambiar_sucursal_sesion' 0 %}" class="sub-item ps-5 {% if not request.session.sucursal_seleccionada_id %}text-warning{% endif %}">
-                            <i class="bi bi-globe small"></i> Ver Todo (Global)
-                        </a>
+                <div class="menu-category">Operaciones</div>
+                <a href="{% url 'registrar_venta' %}" class="list-group-item list-group-item-action bg-transparent second-text fw-bold text-success">
+                    <i class="bi bi-cart-plus-fill me-2"></i>Nueva Venta (F2)
+                </a>
+                <a href="{% url 'cerrar_turno' %}" class="list-group-item list-group-item-action bg-transparent second-text">
+                    <i class="bi bi-door-closed me-2"></i>Cierre de Caja
+                </a>
 
-                        {% for suc in todas_las_sucursales_contexto %} 
-                            <a href="{% url 'cambiar_sucursal_sesion' suc.id %}" 
-                            class="sub-item ps-5 {% if request.session.sucursal_seleccionada_id == suc.id %}text-primary fw-bold{% endif %}">
-                                {{ suc.nombre }}
-                            </a>
-                        {% endfor %}
-                        
-                        <div class="border-top my-1"></div>
-                        
-                        <a href="{% url 'listar_sucursales' %}" class="sub-item ps-5 text-info">
-                            <i class="bi bi-gear-fill small"></i> Administrar
-                        </a>
-                    </div>
-                {% else %}
-                    <div class="list-group-item bg-transparent second-text text-muted">
-                        <i class="bi bi-shop me-2"></i> {{ user.perfilusuario.sucursal.nombre|default:"Sin Asignar" }}
-                    </div>
+                <div class="menu-category">Movimientos de Stock</div>
+                <a href="{% url 'agregar_stock' %}" class="list-group-item list-group-item-action bg-transparent second-text">
+                    <i class="bi bi-box-arrow-in-down me-2"></i>Ingresar Mercadería
+                </a>
+                <a href="{% url 'reponer_gondola' %}" class="list-group-item list-group-item-action bg-transparent second-text">
+                    <i class="bi bi-arrow-left-right me-2"></i>Reponer Góndola
+                </a>
+                <a href="{% url 'sugerencias_compra' %}" class="list-group-item list-group-item-action bg-transparent second-text text-warning">
+                    <i class="bi bi-cart-check-fill me-2"></i>Sugerencias a Pedir
+                </a>
+
+                <div class="menu-category">Consultas y Catálogo</div>
+                <a href="{% url 'stock_detalle' %}" class="list-group-item list-group-item-action bg-transparent second-text">
+                    <i class="bi bi-search me-2"></i>Stock Detallado
+                </a>
+                <a href="{% url 'listar_productos' %}" class="list-group-item list-group-item-action bg-transparent second-text">
+                    <i class="bi bi-tags me-2"></i>Lista de Precios
+                </a>
+                <a href="{% url 'listar_categorias' %}" class="list-group-item list-group-item-action bg-transparent second-text">
+                    <i class="bi bi-bookmark-fill me-2"></i>Categorías
+                </a>
+
+                <div class="menu-category">Historial y Reportes</div>
+                <a href="{% url 'historial_ventas' %}" class="list-group-item list-group-item-action bg-transparent second-text">
+                    <i class="bi bi-clock-history me-2"></i>Historial Ventas
+                </a>
+                <a href="{% url 'analisis_canasta' %}" class="list-group-item list-group-item-action bg-transparent second-text">
+                    <i class="bi bi-pie-chart me-2"></i>Análisis Canasta
+                </a>
+
+                <div class="menu-category">Terceros</div>
+                <a href="{% url 'listar_clientes' %}" class="list-group-item list-group-item-action bg-transparent second-text">
+                    <i class="bi bi-people me-2"></i>Clientes (Cta. Cte.)
+                </a>
+                <a href="{% url 'listar_proveedores' %}" class="list-group-item list-group-item-action bg-transparent second-text">
+                    <i class="bi bi-truck me-2"></i>Proveedores
+                </a>
+
+                {% if user.perfilusuario.rol == 'admin' or user.is_superuser %}
+                <div class="border-top my-2"></div>
+                <div class="menu-category">Administración</div>
+                <a href="{% url 'listar_sucursales' %}" class="list-group-item list-group-item-action bg-transparent second-text">
+                    <i class="bi bi-building me-2"></i>Sucursales
+                </a>
+                <a href="{% url 'gestionar_usuarios' %}" class="list-group-item list-group-item-action bg-transparent second-text">
+                    <i class="bi bi-person-badge me-2"></i>Personal
+                </a>
+                <a href="{% url 'configuracion' %}" class="list-group-item list-group-item-action bg-transparent second-text">
+                    <i class="bi bi-gear me-2"></i>Configuración
+                </a>
                 {% endif %}
 
-                <a href="#menuVentas" class="list-group-item list-group-item-action bg-transparent second-text fw-bold" data-bs-toggle="collapse">
-                    <i class="bi bi-cart4 me-2"></i>Ventas <i class="bi bi-chevron-down ms-auto small"></i>
-                </a>
-                <div class="collapse" id="menuVentas">
-                    <a href="{% url 'registrar_venta' %}" class="sub-item ps-5">Nueva Venta</a>
-                    <a href="{% url 'historial_ventas' %}" class="sub-item ps-5">Historial</a>
-                </div>
-
-                <a href="#menuProductos" class="list-group-item list-group-item-action bg-transparent second-text fw-bold" data-bs-toggle="collapse">
-                    <i class="bi bi-box-seam me-2"></i>Gestión y Stock <i class="bi bi-chevron-down ms-auto small"></i>
-                </a>
-                <div class="collapse" id="menuProductos">
-                    <a href="{% url 'stock_detalle' %}" class="sub-item ps-5">
-                        <i class="bi bi-list-check"></i> Stock Detallado
-                    </a>
-                    <a href="{% url 'agregar_stock' %}" class="sub-item ps-5">
-                        <i class="bi bi-plus-circle"></i> Ingresar Mercadería
-                    </a>
-                    <a href="{% url 'importar_stock' %}" class="sub-item ps-5 ms-3 small text-muted" style="font-size: 0.9em;">
-                        <i class="bi bi-file-earmark-spreadsheet"></i> Importar Excel
-                    </a>
-                    <a href="{% url 'cargar_factura_ocr' %}" class="sub-item ps-5 ms-3 small text-muted" style="font-size: 0.9em;">
-                        <i class="bi bi-camera"></i> Cargar por Foto
-                    </a>
-                    <a href="{% url 'reponer_gondola' %}" class="sub-item ps-5">
-                        <i class="bi bi-arrow-left-right"></i> Reponer Góndola
-                    </a>
-                    
-                    <a href="{% url 'listar_productos' %}" class="sub-item ps-5">
-                        <i class="bi bi-tags"></i> Lista de Precios
-                    </a>
-                    <a href="{% url 'crear_producto' %}" class="sub-item ps-5">
-                        <i class="bi bi-file-earmark-plus"></i> Nuevo Producto
-                    </a>
-                    <div class="border-top my-1"></div> <a href="{% url 'listar_categorias' %}" class="sub-item ps-5">
-                        <i class="bi bi-tag-fill"></i> Categorías
-                    </a>
-                </div>
-              
-                <a href="#menuProveedores" class="list-group-item list-group-item-action bg-transparent second-text fw-bold" data-bs-toggle="collapse">
-                    <i class="bi bi-truck me-2"></i>Proveedores <i class="bi bi-chevron-down ms-auto small"></i>
-                </a>
-                <div class="collapse" id="menuProveedores">
-                    <a href="{% url 'sugerencias_compra' %}" class="sub-item ps-5 text-warning fw-bold">
-                        <i class="bi bi-cart-plus-fill"></i> Sugerencias a Pedir
-                    </a>
-                    <a href="{% url 'listar_proveedores' %}" class="sub-item ps-5">
-                        <i class="bi bi-list-task"></i> Listado y Cta. Cte.
-                    </a>
-                    <a href="{% url 'registrar_factura_proveedor' %}" class="sub-item ps-5">
-                        <i class="bi bi-receipt"></i> Cargar Factura Compra
-                    </a>
-                    <a href="{% url 'crear_proveedor' %}" class="sub-item ps-5 text-success">
-                        <i class="bi bi-person-plus"></i> Nuevo Proveedor
-                    </a>
-                </div>
-             
-                <a href="#menuReportes" class="list-group-item list-group-item-action bg-transparent second-text fw-bold" data-bs-toggle="collapse">
-                    <i class="bi bi-bar-chart-line me-2"></i>Reportes <i class="bi bi-chevron-down ms-auto small"></i>
-                </a>
-                <div class="collapse" id="menuReportes">
-                    <a href="{% url 'reportes_dashboard' %}" class="sub-item ps-5">
-                        <i class="bi bi-pie-chart"></i> Balance Financiero
-                    </a>
-                    <a href="{% url 'historial_ventas' %}" class="sub-item ps-5">
-                        <i class="bi bi-clock-history"></i> Historial de Ventas
-                    </a>
-                    <a href="{% url 'analisis_canasta' %}" class="sub-item ps-5 text-info fw-bold">
-                        <i class="bi bi-lightbulb-fill"></i> Análisis de Canasta
-                    </a>
-                    <a href="{% url 'cerrar_turno' %}" class="sub-item ps-5 text-danger fw-bold">
-                         <i class="bi bi-door-closed-fill"></i> Cierre de Caja (Turno)
-                    </a>
-                </div>
-
-                <a href="#menuClientes" class="list-group-item list-group-item-action bg-transparent second-text fw-bold" data-bs-toggle="collapse">
-                    <i class="bi bi-people me-2"></i>Clientes <i class="bi bi-chevron-down ms-auto small"></i>
-                </a>
-                <div class="collapse" id="menuClientes">
-                    <a href="{% url 'listar_clientes' %}" class="sub-item ps-5">
-                            Listado Clientes
-                    </a>
-                    <a href="{% url 'listar_clientes' %}?filtro=deudores" class="sub-item ps-5 text-warning">
-                            Cuentas Corrientes (Deudores)
-                    </a>
-                </div>
                 <div class="border-top my-3"></div>
-                    <a href="{% url 'logout' %}" class="list-group-item list-group-item-action bg-transparent text-danger fw-bold">
-                        <i class="bi bi-box-arrow-left me-2"></i>Cerrar Sesión
-                    </a>
-
-            {% if user.perfilusuario.rol == 'admin' %}
-                <a href="{% url 'configuracion' %}" class="list-group-item list-group-item-action bg-transparent second-text fw-bold">
-                    <i class="bi bi-gear me-2"></i>Configuración Negocio
+                <a href="{% url 'logout' %}" class="list-group-item list-group-item-action bg-transparent text-danger fw-bold">
+                    <i class="bi bi-box-arrow-left me-2"></i>Cerrar Sesión
                 </a>
-                
-                <a href="{% url 'gestionar_usuarios' %}" class="list-group-item list-group-item-action bg-transparent second-text fw-bold text-primary">
-                    <i class="bi bi-people me-2"></i>Gestión de Personal
-                </a>
-            {% endif %}
             </div>
         </div>
 
@@ -181,7 +113,7 @@
             <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom px-4 py-3 d-flex justify-content-between">
                 <div class="d-flex align-items-center">
                     <i class="bi bi-list fs-3 me-3" id="menu-toggle" style="cursor: pointer;"></i>
-                    <h4 class="m-0 fw-bold">Gestión de Stock</h4>
+                    <h4 class="m-0 fw-bold">Gestión de Kiosco</h4>
                 </div>
 
                 <button class="btn btn-outline-secondary rounded-circle" id="theme-toggle" title="Cambiar Tema">
@@ -192,11 +124,7 @@
             <div class="container-fluid px-4 py-4">
                 {% if messages %}
                     {% for message in messages %}
-                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    {% endfor %}
+                        {% endfor %}
                 {% endif %}
                 
                 {% block content %}{% endblock %}
@@ -204,77 +132,51 @@
         </div>
     </div>
 
-
- <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // 1. CONVERTIR ALERTAS DE DJANGO A SWEETALERT MODERNAS
         {% if messages %}
             {% for message in messages %}
                 Swal.fire({
-                    toast: true,
-                    position: 'top-end',
+                    toast: true, position: 'top-end',
                     icon: '{{ message.tags }}' === 'error' ? 'error' : ('{{ message.tags }}' === 'warning' ? 'warning' : 'success'),
-                    title: '{{ message }}',
-                    showConfirmButton: false,
-                    timer: 3500,
-                    timerProgressBar: true
+                    title: '{{ message }}', showConfirmButton: false, timer: 3500, timerProgressBar: true
                 });
             {% endfor %}
         {% endif %}
 
-        // 2. ATAJOS DE TECLADO (HOTKEYS)
         document.addEventListener('keydown', function(e) {
-            // F2 = Abrir Nueva Venta rápido
-            if (e.key === 'F2') {
-                e.preventDefault();
-                window.location.href = "{% url 'registrar_venta' %}";
-            }
-            // F4 = Poner el cursor en el buscador automáticamente
-            if (e.key === 'F4') {
-                e.preventDefault();
+            if (e.key === 'F2') { e.preventDefault(); window.location.href = "{% url 'registrar_venta' %}"; }
+            if (e.key === 'F4') { 
+                e.preventDefault(); 
                 let searchInput = document.querySelector('input[type="text"][name="q"]');
-                if(searchInput) searchInput.focus();
+                if(searchInput) searchInput.focus(); 
             }
         });
 
-        // 3. LOADERS AUTOMÁTICOS (Evita el doble clic)
         document.querySelectorAll('form').forEach(form => {
             form.addEventListener('submit', function(e) {
-                // Buscamos el botón de submit
                 let btn = this.querySelector('button[type="submit"]');
                 if (btn && !this.classList.contains('no-loader')) {
-                    // Cambiamos el texto y lo bloqueamos
                     let textoOriginal = btn.innerHTML;
-                    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Procesando...';
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
                     btn.disabled = true;
-                    // Por si la validación HTML falla y no se envía, lo restauramos en 5 segs
                     setTimeout(() => { btn.innerHTML = textoOriginal; btn.disabled = false; }, 5000);
                 }
             });
         });
 
-        // Lógica del Menú Lateral
         var el = document.getElementById("wrapper");
-        var toggleButton = document.getElementById("menu-toggle");
+        document.getElementById("menu-toggle").onclick = function () { el.classList.toggle("toggled"); };
 
-        toggleButton.onclick = function () {
-            el.classList.toggle("toggled");
-        };
-
-        // Lógica del Modo Oscuro
         const themeToggle = document.getElementById('theme-toggle');
         const html = document.documentElement;
         const icon = themeToggle.querySelector('i');
-
-        // Cargar preferencia guardada
         const savedTheme = localStorage.getItem('theme') || 'light';
         html.setAttribute('data-bs-theme', savedTheme);
         updateIcon(savedTheme);
 
         themeToggle.addEventListener('click', () => {
-            const currentTheme = html.getAttribute('data-bs-theme');
-            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-            
+            const newTheme = html.getAttribute('data-bs-theme') === 'light' ? 'dark' : 'light';
             html.setAttribute('data-bs-theme', newTheme);
             localStorage.setItem('theme', newTheme);
             updateIcon(newTheme);
@@ -283,7 +185,6 @@
         function updateIcon(theme) {
             if(theme === 'dark') {
                 icon.classList.replace('bi-moon-stars-fill', 'bi-sun-fill');
-                // Agregamos una clase especial al sidebar si es necesario en CSS
                 document.getElementById('sidebar-wrapper').classList.add('dark-mode-sidebar');
             } else {
                 icon.classList.replace('bi-sun-fill', 'bi-moon-stars-fill');
@@ -291,16 +192,12 @@
             }
         }
 
-        // NUEVO: Auto-cerrar el menú en celulares al hacer clic
         if (window.innerWidth <= 768) {
-            const menuLinks = document.querySelectorAll('#sidebar-wrapper a');
-            menuLinks.forEach(link => {
-                link.addEventListener('click', () => {
-                    if (!link.hasAttribute('data-bs-toggle')) {
-                        el.classList.remove("toggled");
-                    }
-                });
+            document.querySelectorAll('#sidebar-wrapper a').forEach(link => {
+                link.addEventListener('click', () => { if (!link.hasAttribute('data-bs-toggle')) el.classList.remove("toggled"); });
             });
         }
     </script>
     {% block javascript %}{% endblock %}
+</body>
+</html>

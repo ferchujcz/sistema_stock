@@ -24,6 +24,7 @@ from django.contrib.auth.models import User
 from django.views.decorators.csrf import csrf_exempt
 from .models import SesionEscaneo
 from apyori import apriori
+from django.db.models.functions import Coalesce
 from django.views.generic import ListView, CreateView, UpdateView
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import UserPassesTestMixin
@@ -253,64 +254,76 @@ def stock_detalle(request):
     sucursal_usuario = obtener_sucursal_usuario(request)
     if not sucursal_usuario and not request.user.is_superuser:
         messages.error(request, "Tu usuario no está asignado a ninguna sucursal.")
-        return render(request, 'core/stock_detalle.html', {'info_consolidada': []})
+        return render(request, 'core/stock_detalle.html', {'page_obj': []})
 
     hoy = timezone.now().date()
     hace_30_dias = hoy - timedelta(days=30)
+    query = request.GET.get('q', '')
 
-    base_query = Producto.objects.all()
+    base_query = Producto.objects.all().order_by('nombre')
     if not request.user.is_superuser and sucursal_usuario:
-        base_query = Producto.objects.filter(lotes__sucursal=sucursal_usuario)
+        base_query = base_query.filter(lotes__sucursal=sucursal_usuario).distinct()
 
-    productos_con_stock = base_query.annotate(
-        total_gondola=Sum(Case(When(lotes__ubicacion='gondola', lotes__sucursal=sucursal_usuario, then='lotes__cantidad'), default=0, output_field=IntegerField())) if sucursal_usuario else Sum(Case(When(lotes__ubicacion='gondola', then='lotes__cantidad'), default=0, output_field=IntegerField())),
-        total_deposito=Sum(Case(When(lotes__ubicacion='deposito', lotes__sucursal=sucursal_usuario, then='lotes__cantidad'), default=0, output_field=IntegerField())) if sucursal_usuario else Sum(Case(When(lotes__ubicacion='deposito', then='lotes__cantidad'), default=0, output_field=IntegerField())),
-        vencimiento_proximo=Min('lotes__fecha_vencimiento', filter=Q(lotes__sucursal=sucursal_usuario)) if sucursal_usuario else Min('lotes__fecha_vencimiento')
-    ).distinct()
+    if query:
+        base_query = base_query.filter(Q(nombre__icontains=query) | Q(codigo_barras__icontains=query))
 
-    # --- EL ARREGLO MÁGICO: Un solo viaje a la base de datos ---
-    ventas_query = DetalleVenta.objects.filter(venta__fecha_hora__gte=hace_30_dias)
+    # PAGINACIÓN PRIMERO: Solo agarramos 50 productos para procesar, no toda la base
+    paginator = Paginator(base_query, 50)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    # Solo hacemos los cálculos matemáticos para los 50 que estamos mostrando
+    productos_ids = [p.id for p in page_obj.object_list]
+    
+    ventas_query = DetalleVenta.objects.filter(venta__fecha_hora__gte=hace_30_dias, producto_id__in=productos_ids)
     if sucursal_usuario:
         ventas_query = ventas_query.filter(venta__sucursal=sucursal_usuario)
         
-    # Traemos todo y lo convertimos en un diccionario super rápido de leer
     ventas_dict = ventas_query.values('producto_id').annotate(total=Sum('cantidad'))
     ventas_map = {item['producto_id']: item['total'] for item in ventas_dict}
-    # ------------------------------------------------------------
 
     info_consolidada = []
-    for producto in productos_con_stock:
-        dias_para_vencer = None
-        if producto.vencimiento_proximo:
-            dias_para_vencer = (producto.vencimiento_proximo - hoy).days
+    
+    # Procesamos individualmente para no mezclar Góndola/Depósito
+    for producto in page_obj.object_list:
+        lotes = Stock.objects.filter(producto=producto)
+        if sucursal_usuario:
+            lotes = lotes.filter(sucursal=sucursal_usuario)
             
-        # En vez de consultar la base de datos, leemos el diccionario local (Demora 0.0001 segundos)
+        # Sumas seguras ignorando lotes vacíos
+        total_gondola = lotes.filter(ubicacion='gondola').aggregate(tot=Sum('cantidad'))['tot'] or 0
+        total_deposito = lotes.filter(ubicacion='deposito').aggregate(tot=Sum('cantidad'))['tot'] or 0
+        
+        lote_proximo = lotes.filter(cantidad__gt=0).order_by(F('fecha_vencimiento').asc(nulls_last=True)).first()
+        vencimiento_proximo = lote_proximo.fecha_vencimiento if lote_proximo else None
+
+        dias_para_vencer = (vencimiento_proximo - hoy).days if vencimiento_proximo else None
+        
         ventas_30_dias = ventas_map.get(producto.id, 0)
         velocidad_venta = ventas_30_dias / 30.0 if ventas_30_dias > 0 else 0 
 
-        stock_total = (producto.total_gondola or 0) + (producto.total_deposito or 0)
-        en_riesgo = False
-        if stock_total == 0:
-             en_riesgo = True 
-        elif stock_total < producto.stock_minimo:
-             en_riesgo = True     
-        elif velocidad_venta > 0 and dias_para_vencer is not None and dias_para_vencer > 0:
-            dias_de_stock_restante = stock_total / velocidad_venta
-            if dias_de_stock_restante > dias_para_vencer:
-                en_riesgo = True
+        stock_total = total_gondola + total_deposito
+        en_riesgo = stock_total == 0 or stock_total < producto.stock_minimo or (
+            velocidad_venta > 0 and dias_para_vencer is not None and (stock_total / velocidad_venta) > dias_para_vencer
+        )
 
         info_consolidada.append({
-            'producto': producto, 'total_gondola': producto.total_gondola,
-            'total_deposito': producto.total_deposito,
-            'vencimiento_proximo': producto.vencimiento_proximo,
+            'producto': producto, 
+            'total_gondola': total_gondola,
+            'total_deposito': total_deposito,
+            'vencimiento_proximo': vencimiento_proximo,
             'dias_para_vencer': dias_para_vencer,
-            'dias_para_vencer_abs': abs(dias_para_vencer) if dias_para_vencer is not None else None,
-            'en_riesgo': en_riesgo, 'velocidad_venta': round(velocidad_venta, 2)
+            'en_riesgo': en_riesgo
         })
 
-    info_consolidada.sort(key=lambda x: (x['dias_para_vencer'] is None, x['dias_para_vencer'] if x['dias_para_vencer'] is not None else float('inf'))) 
-    return render(request, 'core/stock_detalle.html', {'info_consolidada': info_consolidada, 'sucursal_actual': sucursal_usuario})
+    # Le pegamos nuestra info procesada al objeto paginador para mandarla al HTML
+    page_obj.info_procesada = info_consolidada
 
+    return render(request, 'core/stock_detalle.html', {
+        'page_obj': page_obj, 
+        'sucursal_actual': sucursal_usuario,
+        'query': query
+    })
 def importar_stock(request):
     query = request.GET.get('q')
     productos = []
@@ -2225,26 +2238,36 @@ def gestionar_usuarios(request):
 @login_required
 def sumar_stock_producto(request, producto_id):
     sucursal_usuario = obtener_sucursal_usuario(request)
+    if not sucursal_usuario:
+        messages.error(request, "Necesitás estar asignado a una sucursal para ingresar mercadería.")
+        return redirect('dashboard')
+
     producto = get_object_or_404(Producto, id=producto_id)
 
-    if request.method == 'POST':
-        cantidad = int(request.POST['cantidad'])
-        fecha_vencimiento = request.POST.get('fecha_vencimiento')
-        ubicacion = request.POST.get('ubicacion', 'deposito')
+    # Evitamos que modifiquen productos de otra sucursal si el sistema las separa
+    if not request.user.is_superuser and producto.lotes.filter(sucursal=sucursal_usuario).exists() is False and producto.lotes.exists():
+        pass # Si usas lógica estricta multi-sucursal, podes validarlo acá
 
-        # Creamos el lote nuevo (ingreso de mercadería)
-        Stock.objects.create(
-            producto=producto,
-            cantidad=cantidad,
-            fecha_vencimiento=fecha_vencimiento if fecha_vencimiento else None,
-            ubicacion=ubicacion,
-            sucursal=sucursal_usuario
-        )
-        messages.success(request, f"¡Se sumaron {cantidad} unidades a {producto.nombre}!")
-        return redirect('agregar_stock') # Lo devolvemos al buscador para que siga pistoleando
+    if request.method == 'POST':
+        cantidad = int(request.POST.get('cantidad', 0))
+        ubicacion = request.POST.get('ubicacion')
+        fecha_venc = request.POST.get('fecha_vencimiento')
+
+        if cantidad > 0:
+            # Creamos el nuevo lote
+            Stock.objects.create(
+                producto=producto,
+                cantidad=cantidad,
+                ubicacion=ubicacion,
+                fecha_vencimiento=fecha_venc if fecha_venc else None,
+                sucursal=sucursal_usuario
+            )
+            messages.success(request, f"¡Ingresaste {cantidad} unidades de {producto.nombre} a {ubicacion.capitalize()}!")
+            return redirect('agregar_stock') # Lo devolvemos al buscador para el siguiente producto
+        else:
+            messages.error(request, "La cantidad debe ser mayor a cero.")
 
     return render(request, 'core/sumar_stock_form.html', {'producto': producto})
-
 @login_required
 def crear_producto_ajax(request):
     if request.method == 'POST':

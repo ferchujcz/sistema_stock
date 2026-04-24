@@ -19,7 +19,7 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="cantidad" class="form-label">Cantidad a sumar</label>
-                            <input type="number" name="cantidad" id="cantidad" class="form-control" required autofocus>
+                            <input type="number" name="cantidad" id="cantidad" class="form-control" required autofocus min="1">
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="fecha_vencimiento" class="form-label">Vencimiento (Opcional)</label>
@@ -29,9 +29,9 @@
 
                     <div class="mb-4">
                         <label for="ubicacion" class="form-label">Ubicación</label>
-                        <select name="ubicacion" id="ubicacion" class="form-select">
-                            <option value="">Depósito (Fondo)</option>
-                            <option value="">Góndola (Frente)</option>
+                        <select name="ubicacion" id="ubicacion" class="form-select" required>
+                            <option value="deposito">Depósito (Fondo)</option>
+                            <option value="gondola">Góndola (Frente)</option>
                         </select>
                     </div>
                     
