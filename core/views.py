@@ -8,11 +8,13 @@ import json
 from .forms import ProductoForm
 from .models import Configuracion
 from django.conf import settings
-from django.db.models.functions import Abs
+from django.db.models.functions import Abs, TruncDate
+
 # --- Imports de Django ---
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils.dateparse import parse_date
 from django.http import JsonResponse
+from django.core.paginator import Paginator
 from django.db import transaction, IntegrityError
 from django.contrib import messages
 from django.utils import timezone
@@ -78,32 +80,37 @@ def dashboard(request):
     hoy = timezone.now().date()
     sucursal_usuario = obtener_sucursal_usuario(request)
 
-    # --- 1. CÁLCULO DE GRÁFICO (Ventas últimos 7 días) ---
-    # Esto faltaba en la versión anterior y por eso daba error el JS
+  # --- 1. CÁLCULO DE GRÁFICO (Ventas últimos 7 días OPTIMIZADO) ---
+    fecha_limite = hoy - timedelta(days=6)
+    
+    # Preparamos la consulta base
+    ventas_semana_query = Venta.objects.filter(fecha_hora__date__gte=fecha_limite)
+    if sucursal_usuario:
+        ventas_semana_query = ventas_semana_query.filter(sucursal=sucursal_usuario)
+
+    # MAGIA: Agrupamos y sumamos todo en 1 solo viaje a la base de datos
+    ventas_por_dia = ventas_semana_query.annotate(
+        dia=TruncDate('fecha_hora')
+    ).values('dia').annotate(
+        total_dia=Sum('total')
+    ).order_by('dia')
+
+    # Convertimos la respuesta en un diccionario rápido {fecha: total}
+    ventas_dict = {v['dia']: float(v['total_dia']) for v in ventas_por_dia if v['dia']}
+
     ventas_semana_labels = []
     ventas_semana_data = []
     
-    # Iteramos los últimos 7 días (incluyendo hoy)
+    # Armamos las listas para el gráfico rellenando con 0 los días sin ventas
     for i in range(6, -1, -1):
-        dia = hoy - timedelta(days=i)
-        # Filtramos ventas por día
-        ventas_dia_query = Venta.objects.filter(fecha_hora__date=dia)
-        
-        # Si hay sucursal, filtramos. Si es superadmin global, ve todo.
-        if sucursal_usuario:
-            ventas_dia_query = ventas_dia_query.filter(sucursal=sucursal_usuario)
-        
-        total_dia = ventas_dia_query.aggregate(total=Sum('total'))['total'] or 0
-        
-        ventas_semana_labels.append(dia.strftime('%d/%m')) # Etiqueta eje X
-        ventas_semana_data.append(float(total_dia)) # Dato eje Y
+        dia_actual = hoy - timedelta(days=i)
+        ventas_semana_labels.append(dia_actual.strftime('%d/%m'))
+        ventas_semana_data.append(ventas_dict.get(dia_actual, 0.0))
 
-    # Guardamos los datos del gráfico en el contexto
     context['ventas_labels'] = json.dumps(ventas_semana_labels)
     context['ventas_data'] = json.dumps(ventas_semana_data)
-    context['total_ventas_semana'] = sum(ventas_semana_data) # Esta variable faltaba
+    context['total_ventas_semana'] = sum(ventas_semana_data)
     # -----------------------------------------------------
-
     # --- 2. LÓGICA DE SUPERADMIN ---
     if usuario.is_superuser:
         ventas_hoy_todas = Venta.objects.filter(fecha_hora__date=hoy)
@@ -740,9 +747,19 @@ def historial_ventas(request):
         ventas_query = Venta.objects.none()
         messages.warning(request, "No tienes una sucursal asignada para ver el historial.")
 
-    ventas = ventas_query.order_by('-fecha_hora').prefetch_related('detalles__producto')
-    return render(request, 'core/historial_ventas.html', {'ventas': ventas, 'sucursal_actual': sucursal_usuario})
+    # 1. OPTIMIZACIÓN: Ya tenías prefetch_related, lo mantenemos porque es excelente
+    ventas_list = ventas_query.order_by('-fecha_hora').prefetch_related('detalles__producto')
+    
+    # 2. PAGINACIÓN: Cortamos la lista de a 50 ventas por página
+    paginator = Paginator(ventas_list, 50)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
 
+    # Mandamos 'page_obj' al HTML en lugar de 'ventas'
+    return render(request, 'core/historial_ventas.html', {
+        'page_obj': page_obj, 
+        'sucursal_actual': sucursal_usuario
+    })
 @login_required
 def detalle_venta(request, venta_id):
     sucursal_usuario = obtener_sucursal_usuario(request)
@@ -1373,9 +1390,37 @@ def registrar_pago_proveedor(request):
 
 @login_required
 def listar_productos(request):
-    productos = Producto.objects.select_related('proveedor').all().order_by('nombre')
-    return render(request, 'core/listar_productos.html', {'productos': productos})
+    # --- ESCUDO DE SEGURIDAD (Opcional, si querés que solo el admin vea esta lista) ---
+    # es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
+    # if not request.user.is_superuser and not es_admin_local:
+    #     messages.error(request, "Acceso denegado.")
+    #     return redirect('dashboard')
+    # ----------------------------------------------------------------
 
+    query = request.GET.get('q', '')
+    
+    # 1. OPTIMIZACIÓN EXTREMA: Hacemos 1 solo viaje a la BD trayendo proveedor y categoría
+    productos_list = Producto.objects.select_related('proveedor', 'categoria').all()
+
+    # 2. BUSCADOR EN EL SERVIDOR
+    if query:
+        productos_list = productos_list.filter(
+            Q(nombre__icontains=query) | 
+            Q(codigo_barras__icontains=query)
+        )
+    
+    productos_list = productos_list.order_by('nombre')
+
+    # 3. PAGINACIÓN: Cortamos la torta de a 50 porciones
+    paginator = Paginator(productos_list, 50) 
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    # Mandamos 'page_obj' a la plantilla
+    return render(request, 'core/listar_productos.html', {
+        'page_obj': page_obj,
+        'query': query # Para mantener escrito lo que buscó
+    })
 def crear_producto(request):
     if request.method == 'POST':
         # Cargamos los datos que mandó el usuario en el formulario

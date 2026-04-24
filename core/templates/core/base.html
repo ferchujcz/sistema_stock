@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Gestión</title>
-    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -204,8 +204,55 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+ <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // 1. CONVERTIR ALERTAS DE DJANGO A SWEETALERT MODERNAS
+        {% if messages %}
+            {% for message in messages %}
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: '{{ message.tags }}' === 'error' ? 'error' : ('{{ message.tags }}' === 'warning' ? 'warning' : 'success'),
+                    title: '{{ message }}',
+                    showConfirmButton: false,
+                    timer: 3500,
+                    timerProgressBar: true
+                });
+            {% endfor %}
+        {% endif %}
+
+        // 2. ATAJOS DE TECLADO (HOTKEYS)
+        document.addEventListener('keydown', function(e) {
+            // F2 = Abrir Nueva Venta rápido
+            if (e.key === 'F2') {
+                e.preventDefault();
+                window.location.href = "{% url 'registrar_venta' %}";
+            }
+            // F4 = Poner el cursor en el buscador automáticamente
+            if (e.key === 'F4') {
+                e.preventDefault();
+                let searchInput = document.querySelector('input[type="text"][name="q"]');
+                if(searchInput) searchInput.focus();
+            }
+        });
+
+        // 3. LOADERS AUTOMÁTICOS (Evita el doble clic)
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                // Buscamos el botón de submit
+                let btn = this.querySelector('button[type="submit"]');
+                if (btn && !this.classList.contains('no-loader')) {
+                    // Cambiamos el texto y lo bloqueamos
+                    let textoOriginal = btn.innerHTML;
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Procesando...';
+                    btn.disabled = true;
+                    // Por si la validación HTML falla y no se envía, lo restauramos en 5 segs
+                    setTimeout(() => { btn.innerHTML = textoOriginal; btn.disabled = false; }, 5000);
+                }
+            });
+        });
+
         // Lógica del Menú Lateral
         var el = document.getElementById("wrapper");
         var toggleButton = document.getElementById("menu-toggle");
@@ -257,5 +304,3 @@
         }
     </script>
     {% block javascript %}{% endblock %}
-</body>
-</html>

@@ -132,8 +132,8 @@ class Categoria(models.Model):
 
 class Producto(models.Model):
     negocio = models.ForeignKey(Negocio, on_delete=models.CASCADE, null=True, blank=True) # <--- CLAVE SAAS
-    nombre = models.CharField(max_length=200)
-    codigo_barras = models.CharField(max_length=200, blank=True, null=True) # Le quité el unique=True porque ahora pueden haber códigos repetidos entre distintos negocios
+    nombre = models.CharField(max_length=200, db_index=True)
+    codigo_barras = models.CharField(max_length=200, db_index=True, blank=True, null=True) # Le quité el unique=True porque ahora pueden haber códigos repetidos entre distintos negocios
     categoria = models.ForeignKey(Categoria, on_delete=models.SET_NULL, null=True, blank=True)
     proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True)
     costo = models.DecimalField(max_digits=10, decimal_places=2)
@@ -166,7 +166,7 @@ class Stock(models.Model):
     cantidad = models.PositiveIntegerField()
     ubicacion = models.CharField(max_length=10, choices=UBICACION_CHOICES, default='deposito')
     sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE)
-    fecha_vencimiento = models.DateField(null=True, blank=True)
+    fecha_vencimiento = models.DateField(null=True, blank=True, db_index=True) # <-- AGREGADO
     
     def __str__(self):
         if self.fecha_vencimiento:
@@ -193,7 +193,7 @@ class Venta(models.Model):
         ('cuenta_corriente','Cta. Cte. (Fiado)'),
     ]
     metodo_pago = models.CharField(max_length=20, choices=METODO_PAGO_CHOICES, default='efectivo')
-    fecha_hora = models.DateTimeField(auto_now_add=True)
+    fecha_hora = models.DateTimeField(auto_now_add=True, db_index=True) # <-- AGREGADO
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     cliente = models.ForeignKey(Cliente, on_delete=models.SET_NULL, null=True, blank=True)
     descuento_recargo = models.DecimalField(max_digits=10, decimal_places=2, default=0)
