@@ -15,20 +15,19 @@
         /* Reglas mágicas para Celulares */
         @media (max-width: 768px) {
             #sidebar-wrapper {
-                margin-left: -250px; /* Esconde el menú fuera de la pantalla */
+                margin-left: -280px; 
                 position: fixed;
                 height: 100vh;
                 z-index: 1050;
                 transition: all 0.3s ease;
                 box-shadow: 5px 0px 10px rgba(0,0,0,0.2);
-                background-color: var(--bs-body-bg); /* Evita que sea transparente */
+                background-color: var(--bs-body-bg); 
             }
-            /* Cuando tocás el botón de menú, esta clase lo hace aparecer */
             #wrapper.toggled #sidebar-wrapper {
                 margin-left: 0;
             }
-            /* Evita que el contenido principal se achique o rompa */
             #page-content-wrapper {
+                margin-left: 0 !important; /* Elimina el empuje fantasma */
                 min-width: 100vw;
             }
         }

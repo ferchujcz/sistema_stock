@@ -347,33 +347,43 @@ def agregar_stock(request):
     return render(request, 'core/agregar_stock.html', context)
 
 @login_required
-def editar_stock(request, stock_id):
-    sucursal_usuario = obtener_sucursal_usuario(request)
-    stock_item = get_object_or_404(Stock, id=stock_id)
-
-# --- VALIDACIÓN DE PERMISOS ---
-    # Solo permitimos si es Superusuario (vos) O si es el Admin del local
+def editar_producto(request, producto_id):
+    # --- ESCUDO DE SEGURIDAD ---
     es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
-    
     if not request.user.is_superuser and not es_admin_local:
-        messages.error(request, "No tenés permisos de administrador para modificar productos.")
-        return redirect('listar_productos')
+        messages.error(request, "Acceso denegado. Función exclusiva para administradores.")
+        return redirect('dashboard')
+    # ---------------------------
     
-    # Además verificamos que no edite productos de OTRO local (si no es superusuario)
-    if not request.user.is_superuser and stock_item.sucursal != sucursal_usuario:
-        messages.error(request, "Este producto pertenece a otra sucursal.")
-        return redirect('listar_productos')
-    # ------------------------------
+    producto = get_object_or_404(Producto, id=producto_id)
+    
     if request.method == 'POST':
-        stock_item.cantidad = int(request.POST['cantidad'])
-        fecha_vencimiento = request.POST.get('fecha_vencimiento')
-        stock_item.fecha_vencimiento = fecha_vencimiento if fecha_vencimiento else None
-        stock_item.ubicacion = request.POST['ubicacion']
-        stock_item.save()
-        messages.success(request, f"Lote de {stock_item.producto.nombre} actualizado.")
-        return redirect('detalle_producto_lotes', producto_id=stock_item.producto.id)
+        # Acá está la magia: le pasamos los datos del formulario Y la 'instance' (el producto a pisar)
+        form = ProductoForm(request.POST, request.FILES, instance=producto)
+        if form.is_valid():
+            form.save()
+            messages.success(request, '¡Producto actualizado exitosamente!')
+            return redirect('listar_productos')
+        else:
+            messages.error(request, 'Por favor, revisá los errores del formulario.')
+    else:
+        # Si recién entra a la página, cargamos el form con los datos actuales del producto
+        form = ProductoForm(instance=producto)
 
-    return render(request, 'core/editar_stock.html', {'stock_item': stock_item})
+    proveedores = Proveedor.objects.all().order_by('nombre')
+    categorias = Categoria.objects.all().order_by('nombre')
+    categorias_json = json.dumps(
+        {cat.id: float(cat.margen_ganancia_porcentaje) for cat in categorias}
+    )
+    
+    # IMPORTANTE: Ahora sí le mandamos el 'form' al HTML
+    return render(request, 'core/form_producto.html', {
+        'form': form, 
+        'producto': producto, 
+        'proveedores': proveedores, 
+        'categorias': categorias,
+        'categorias_json': categorias_json
+    })
 
 @login_required
 def reponer_gondola(request):
@@ -2239,4 +2249,4 @@ def crear_producto_ajax(request):
 def logout_view(request):
     logout(request)
     messages.success(request, "Sesión cerrada correctamente. ¡Hasta pronto!")
-    return redirect('login.html') # O el nombre de tu pantalla de login
+    return redirect('login') # O el nombre de tu pantalla de login

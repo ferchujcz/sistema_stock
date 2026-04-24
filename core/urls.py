@@ -91,5 +91,5 @@ urlpatterns = [
     path('sucursales/editar/<int:pk>/', views.SucursalUpdateView.as_view(), name='editar_sucursal'),
     path('sumar-stock/<int:producto_id>/', views.sumar_stock_producto, name='sumar_stock_producto'),
     path('crear-producto-ajax/', views.crear_producto_ajax, name='crear_producto_ajax'),
-
+    path('logout/', views.logout_view, name='logout'),
 ]
