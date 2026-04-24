@@ -141,7 +141,19 @@ class Producto(models.Model):
     stock_minimo = models.PositiveIntegerField(default=5)
     es_perecedero = models.BooleanField(default=True)
     es_favorito = models.BooleanField(default=False)
-
+# --- NUEVOS CAMPOS PARA RECARGO INDIVIDUAL (Ej: Cigarrillos) ---
+    aplica_recargo_individual = models.BooleanField(
+        default=False, 
+        help_text="Marcar para usar recargos propios en lugar de los globales."
+    )
+    recargo_credito_individual = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0.0,
+        help_text="Porcentaje de recargo para Tarjeta (Ej: 15.0)"
+    )
+    recargo_qr_individual = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0.0,
+        help_text="Porcentaje de recargo para QR (Ej: 6.0)"
+    )
     def __str__(self):
         return self.nombre
 
