@@ -353,13 +353,37 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function actualizarCarrito() {
+function actualizarCarrito() {
         carritoBody.innerHTML = '';
         let subtotal = 0;
+        let ajusteVenta = 0; // Ahora calculamos el ajuste sumando producto por producto
+
+        const metodoPago = document.querySelector('input[name="metodo_pago"]:checked').value;
 
         carrito.forEach((item, index) => {
             const itemSubtotal = item.cantidad * item.precio;
             subtotal += itemSubtotal;
+            
+            // --- LÓGICA DE RECARGO INDIVIDUAL O GLOBAL ---
+            let recargoItem = 0;
+            
+            if (item.tipo !== 'devolucion') {
+                if (metodoPago === 'efectivo' && config.descuentoEfectivo > 0) {
+                    recargoItem = -(itemSubtotal * (config.descuentoEfectivo / 100));
+                } else if (metodoPago === 'credito') {
+                    // Si tiene tilde, usamos su recargo. Si no, usamos el global.
+                    const porcentaje = item.aplica_recargo_individual ? item.recargo_credito_individual : config.recargoCredito;
+                    recargoItem = itemSubtotal * (porcentaje / 100);
+                } else if (metodoPago === 'qr') {
+                    // Lo mismo para QR
+                    const porcentaje = item.aplica_recargo_individual ? item.recargo_qr_individual : config.recargoQR;
+                    recargoItem = itemSubtotal * (porcentaje / 100);
+                }
+            }
+            
+            ajusteVenta += recargoItem;
+            // ---------------------------------------------
+
             const tr = document.createElement('tr');
             if (item.tipo === 'devolucion') tr.classList.add('table-success');
             
@@ -375,15 +399,9 @@ document.addEventListener('DOMContentLoaded', function() {
             carritoBody.appendChild(tr);
         });
 
-        const metodoPago = document.querySelector('input[name="metodo_pago"]:checked').value;
-        let ajuste = 0;
-        if (metodoPago === 'efectivo' && config.descuentoEfectivo > 0) { ajuste = -(subtotal * (config.descuentoEfectivo / 100)); } 
-        else if (metodoPago === 'credito' && config.recargoCredito > 0) { ajuste = subtotal * (config.recargoCredito / 100); } 
-        else if (metodoPago === 'qr' && config.recargoQR > 0) { ajuste = subtotal * (config.recargoQR / 100); }
-
-        totalCalculado = subtotal + ajuste;
+        totalCalculado = subtotal + ajusteVenta;
         document.getElementById('subtotal-venta').innerText = `$ ${subtotal.toFixed(2)}`;
-        document.getElementById('ajuste-venta').innerText = `$ ${ajuste.toFixed(2)}`;
+        document.getElementById('ajuste-venta').innerText = `$ ${ajusteVenta.toFixed(2)}`;
         document.getElementById('total-venta').innerText = `$ ${totalCalculado.toFixed(2)}`;
         calcularVuelto();
     }

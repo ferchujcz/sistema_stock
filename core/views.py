@@ -260,6 +260,10 @@ def stock_detalle(request):
     hace_30_dias = hoy - timedelta(days=30)
     query = request.GET.get('q', '')
 
+    # Reemplazá la lógica de búsqueda inicial de stock_detalle por esto:
+    filtro = request.GET.get('filtro', 'todos')
+    query = request.GET.get('q', '')
+
     base_query = Producto.objects.all().order_by('nombre')
     if not request.user.is_superuser and sucursal_usuario:
         base_query = base_query.filter(lotes__sucursal=sucursal_usuario).distinct()
@@ -267,6 +271,16 @@ def stock_detalle(request):
     if query:
         base_query = base_query.filter(Q(nombre__icontains=query) | Q(codigo_barras__icontains=query))
 
+    # MAGIA DE LAS ALERTAS
+    if filtro == 'alertas':
+        # Buscamos productos con stock menor al mínimo, o sin stock, o que vencen en 20 días
+        base_query = base_query.annotate(
+            stock_total_tmp=Sum('lotes__cantidad')
+        ).filter(
+            Q(stock_total_tmp__lt=F('stock_minimo')) | 
+            Q(stock_total_tmp__isnull=True) |
+            Q(lotes__fecha_vencimiento__lte=hoy + timedelta(days=20))
+        )
     # PAGINACIÓN PRIMERO: Solo agarramos 50 productos para procesar, no toda la base
     paginator = Paginator(base_query, 50)
     page_number = request.GET.get('page')
@@ -791,22 +805,42 @@ def detalle_venta(request, venta_id):
 @login_required
 def buscar_productos(request):
     query = request.GET.get('term', '')
-    # Solo mostramos productos que tengan stock EN ALGUNA PARTE (opcional, pero puede mejorar perf)
-    productos = Producto.objects.filter(nombre__icontains=query)[:10]
-    resultados = [{'id': p.id, 'nombre': p.nombre, 'precio': p.precio_venta} for p in productos]
+    
+    # OPTIMIZACIÓN: Buscamos por nombre O por código en la misma caja
+    productos = Producto.objects.filter(
+        Q(nombre__icontains=query) | Q(codigo_barras__icontains=query)
+    )[:10]
+    
+    resultados = [{
+        'id': p.id, 
+        'nombre': p.nombre, 
+        'precio': float(p.precio_venta), # Convertimos a float para que el JSON no falle
+        'aplica_recargo_individual': p.aplica_recargo_individual,
+        'recargo_credito_individual': float(p.recargo_credito_individual),
+        'recargo_qr_individual': float(p.recargo_qr_individual)
+    } for p in productos]
+    
     return JsonResponse(resultados, safe=False)
 
 @login_required
 def buscar_producto_por_codigo(request):
     codigo = request.GET.get('codigo', '')
     try:
-        # Buscamos el producto, no importa el stock aquí
+        # Buscamos el producto
         producto = Producto.objects.get(codigo_barras=codigo)
-        resultado = {'id': producto.id, 'nombre': producto.nombre, 'precio': producto.precio_venta}
+        
+        # CORRECCIÓN: Cambié 'p' por 'producto' para evitar el error de NameError
+        resultado = {
+            'id': producto.id, 
+            'nombre': producto.nombre, 
+            'precio': float(producto.precio_venta),
+            'aplica_recargo_individual': producto.aplica_recargo_individual,
+            'recargo_credito_individual': float(producto.recargo_credito_individual),
+            'recargo_qr_individual': float(producto.recargo_qr_individual)
+        }
         return JsonResponse(resultado)
     except Producto.DoesNotExist:
          return JsonResponse({'error': 'Producto no encontrado'}, status=404)
-
 # ==============================================================================
 # VISTAS DE IMPORTACIÓN E IA
 # ==============================================================================

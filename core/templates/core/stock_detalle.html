@@ -13,6 +13,20 @@
     <a href="{% url 'agregar_stock' %}" class="btn btn-primary mt-2 mt-md-0">
         <i class="bi bi-box-arrow-in-down"></i> Ingresar Mercadería
     </a>
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <a class="nav-link {% if request.GET.filtro != 'alertas' %}active fw-bold{% endif %}" 
+            href="{% url 'stock_detalle' %}?filtro=todos{% if query %}&q={{ query }}{% endif %}">
+                <i class="bi bi-list-ul"></i> Todos los Productos
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link text-danger {% if request.GET.filtro == 'alertas' %}active fw-bold{% endif %}" 
+            href="{% url 'stock_detalle' %}?filtro=alertas{% if query %}&q={{ query }}{% endif %}">
+                <i class="bi bi-exclamation-triangle"></i> Solo Alertas
+            </a>
+        </li> 
+    </ul>
 </div>
 
 <div class="card shadow-sm mb-3">
