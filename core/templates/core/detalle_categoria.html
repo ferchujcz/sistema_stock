@@ -1,0 +1,95 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1>Categoría: <span class="text-primary">{{ categoria.nombre }}</span></h1>
+        <p class="lead">Margen general asignado: <strong>{{ categoria.margen_ganancia_porcentaje }}%</strong></p>
+    </div>
+    <div>
+        <a href="{% url 'editar_categoria' categoria.id %}" class="btn btn-outline-primary me-2"><i class="bi bi-pencil"></i> Modificar Margen</a>
+        <a href="{% url 'listar_categorias' %}" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Volver</a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white d-flex justify-content-between">
+                <span>Productos en esta categoría</span>
+                <span class="badge bg-light text-dark">{{ productos.count }}</span>
+            </div>
+            <div class="card-body">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Precio Venta</th>
+                            <th class="text-end">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for p in productos %}
+                        <tr>
+                            <td>{{ p.nombre }}</td>
+                            <td>${{ p.precio_venta }}</td>
+                            <td class="text-end">
+                                <form method="post" style="display:inline;">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="accion" value="quitar">
+                                    <input type="hidden" name="producto_id" value="{{ p.id }}">
+                                    <button type="submit" class="btn btn-sm btn-danger">Sacar</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="3" class="text-center text-muted">No hay productos acá.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card shadow-sm">
+            <div class="card-header bg-success text-white">Agregar Producto</div>
+            <div class="card-body">
+                <input type="text" id="buscar-para-agregar" class="form-control mb-2" placeholder="Buscar por nombre o código...">
+                <div id="resultados-busqueda" class="list-group"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascript %}
+<script>
+    const buscador = document.getElementById('buscar-para-agregar');
+    const resultados = document.getElementById('resultados-busqueda');
+
+    buscador.addEventListener('input', function() {
+        const term = this.value;
+        if (term.length < 2) { resultados.innerHTML = ''; return; }
+
+        fetch(`/api/buscar-productos/?term=${term}`)
+            .then(res => res.json())
+            .then(data => {
+                resultados.innerHTML = '';
+                data.forEach(p => {
+                    const btn = document.createElement('button');
+                    btn.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+                    btn.innerHTML = `<span>${p.nombre}</span> <span class="badge bg-success"><i class="bi bi-plus-lg"></i></span>`;
+                    btn.onclick = () => {
+                        const form = document.createElement('form');
+                        form.method = 'POST';
+                        form.innerHTML = `{% csrf_token %}<input type="hidden" name="accion" value="agregar"><input type="hidden" name="producto_id" value="${p.id}">`;
+                        document.body.appendChild(form);
+                        form.submit();
+                    };
+                    resultados.appendChild(btn);
+                });
+            });
+    });
+</script>
+{% endblock %}

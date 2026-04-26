@@ -26,15 +26,22 @@
                     <tr>
                         <td>{{ categoria.nombre }}</td>
                         <td>{{ categoria.margen_ganancia_porcentaje }}%</td>
-                        <td>
+                        </td>
+                        <td class="text-end">
+                            <a href="{% url 'detalle_categoria' categoria.id %}" class="btn btn-sm btn-success" title="Gestionar Productos">
+                                <i class="bi bi-box-seam"></i> Ver Productos
+                            </a>
+
                             {% if user.is_superuser %}
-                                <a href="{% url 'editar_categoria' categoria.id %}" class="btn btn-sm btn-outline-primary" title="Editar"><i class="bi bi-pencil"></i></a>
-                                <form action="{% url 'eliminar_categoria' categoria.id %}" method="post" class="d-inline" onsubmit="return confirm('¿Estás seguro de que quieres eliminar esta categoría?');">
+                                <a href="{% url 'editar_categoria' categoria.id %}" class="btn btn-sm btn-outline-primary ms-1" title="Editar Margen">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form action="{% url 'eliminar_categoria' categoria.id %}" method="post" class="d-inline ms-1" onsubmit="return confirm('ATENCIÓN: ¿Estás seguro de que querés eliminar esta categoría?');">
                                     {% csrf_token %}
-                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar"><i class="bi bi-trash"></i></button>
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
                                 </form>
-                            {% else %}
-                                <span class="text-muted">N/A</span>
                             {% endif %}
                         </td>
                     </tr>

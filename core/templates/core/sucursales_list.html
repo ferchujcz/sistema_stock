@@ -7,6 +7,17 @@
         <a href="{% url 'crear_sucursal' %}" class="btn btn-primary">
             <i class="bi bi-plus-lg"></i> Nueva Sucursal
         </a>
+        <td class="text-end pe-4">
+        <a href="{% url 'editar_sucursal' sucursal.id %}" class="btn btn-sm btn-outline-secondary" title="Editar">
+            <i class="bi bi-pencil"></i>
+        </a>
+        <form action="{% url 'eliminar_sucursal' sucursal.id %}" method="post" class="d-inline" onsubmit="return confirm('ATENCIÓN: ¿Seguro que querés borrar esta sucursal? Se perderá el stock asociado a ella.');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                <i class="bi bi-trash"></i>
+            </button>
+        </form>
+        </td>
     </div>
 
     <div class="card shadow-sm">

@@ -92,4 +92,6 @@ urlpatterns = [
     path('sumar-stock/<int:producto_id>/', views.sumar_stock_producto, name='sumar_stock_producto'),
     path('crear-producto-ajax/', views.crear_producto_ajax, name='crear_producto_ajax'),
     path('logout/', views.logout_view, name='logout'),
+    path('sucursales/eliminar/<int:pk>/', views.SucursalDeleteView.as_view(), name='eliminar_sucursal'),
+    path('categorias/<int:categoria_id>/detalle/', views.detalle_categoria, name='detalle_categoria'),
 ]

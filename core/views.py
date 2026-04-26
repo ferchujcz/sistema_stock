@@ -25,7 +25,7 @@ from django.views.decorators.csrf import csrf_exempt
 from .models import SesionEscaneo
 from apyori import apriori
 from django.db.models.functions import Coalesce
-from django.views.generic import ListView, CreateView, UpdateView
+from django.views.generic import ListView, CreateView, UpdateView, DeleteView
 from django.urls import reverse_lazy
 from django.contrib.auth.mixins import UserPassesTestMixin
 # --- Imports de Python ---
@@ -2049,19 +2049,19 @@ def cerrar_turno(request):
 
 @login_required
 def cambiar_sucursal_sesion(request, sucursal_id):
-    if not request.user.is_superuser:
+    es_admin = request.user.is_superuser or (hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin')
+    
+    if not es_admin:
         messages.error(request, "Solo el administrador puede cambiar de sucursal.")
         return redirect('dashboard')
         
     try:
         sucursal = get_object_or_404(Sucursal, id=sucursal_id)
-        # Guardamos el ID en la sesión del navegador
         request.session['sucursal_seleccionada_id'] = sucursal.id
         messages.success(request, f"Ahora estás administrando: {sucursal.nombre}")
     except Exception as e:
         messages.error(request, "Error al cambiar de sucursal.")
     
-    # Volvemos a la página desde donde hizo clic (o al dashboard)
     return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
 
 # ==============================================================================
@@ -2164,39 +2164,72 @@ def configuracion(request):
 # GESTIÓN DE SUCURSALES (LÓGICA NUEVA)
 # ==============================================================================
 
+
+@login_required
+def detalle_categoria(request, categoria_id):
+    categoria = get_object_or_404(Categoria, id=categoria_id)
+    productos_en_categoria = Producto.objects.filter(categoria=categoria).order_by('nombre')
+    
+    # Si manda un formulario para sacar o agregar un producto
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        producto_id = request.POST.get('producto_id')
+        
+        if accion == 'quitar':
+            prod = get_object_or_404(Producto, id=producto_id)
+            prod.categoria = None
+            prod.save()
+            messages.success(request, f"Se quitó {prod.nombre} de esta categoría.")
+            
+        elif accion == 'agregar':
+            prod = get_object_or_404(Producto, id=producto_id)
+            prod.categoria = categoria
+            prod.save()
+            messages.success(request, f"{prod.nombre} agregado a {categoria.nombre}.")
+            
+        return redirect('detalle_categoria', categoria_id=categoria.id)
+        
+    return render(request, 'core/detalle_categoria.html', {
+        'categoria': categoria,
+        'productos': productos_en_categoria
+    })
+# --- ARREGLO EN EL CAMBIO DE SUCURSAL ---
 @login_required
 def seleccionar_sucursal(request, sucursal_id):
-    """Permite al Admin cambiar de visión temporalmente"""
-    if not request.user.is_superuser:
+    es_admin = request.user.is_superuser or (hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin')
+    
+    if not es_admin:
         messages.error(request, "Solo el administrador puede cambiar de sucursal.")
         return redirect('dashboard')
 
     if sucursal_id == 0:
-        # 0 significa "Ver Todo" (Borramos la selección)
         if 'sucursal_seleccionada_id' in request.session:
             del request.session['sucursal_seleccionada_id']
         messages.info(request, "Viendo datos de: TODAS LAS SUCURSALES")
     else:
-        # Guardamos el ID en la sesión
         sucursal = get_object_or_404(Sucursal, id=sucursal_id)
         request.session['sucursal_seleccionada_id'] = sucursal.id
         messages.success(request, f"Viendo datos de: {sucursal.nombre}")
 
     return redirect('dashboard')
-
-# --- ABM DE SUCURSALES (Solo Admin) ---
-
-
-class SuperUserCheck(UserPassesTestMixin):
+# --- NUEVO ESCUDO DE SEGURIDAD PARA ADMINS ---
+class AdminNegocioCheck(UserPassesTestMixin):
     def test_func(self):
-        return self.request.user.is_superuser
+        user = self.request.user
+        if user.is_superuser:
+            return True
+        # Si no es superusuario, nos fijamos si su rol es 'admin'
+        if hasattr(user, 'perfilusuario') and user.perfilusuario.rol == 'admin':
+            return True
+        return False
 
-class SucursalListView(SuperUserCheck, ListView):
+# --- ABM DE SUCURSALES (Ahora usan el nuevo escudo) ---
+class SucursalListView(AdminNegocioCheck, ListView):
     model = Sucursal
     template_name = 'core/sucursales_list.html'
     context_object_name = 'sucursales'
 
-class SucursalCreateView(SuperUserCheck, CreateView):
+class SucursalCreateView(AdminNegocioCheck, CreateView):
     model = Sucursal
     fields = ['nombre', 'direccion']
     template_name = 'core/sucursal_form.html'
@@ -2206,11 +2239,20 @@ class SucursalCreateView(SuperUserCheck, CreateView):
         messages.success(self.request, "Sucursal creada correctamente")
         return super().form_valid(form)
 
-class SucursalUpdateView(SuperUserCheck, UpdateView):
+class SucursalUpdateView(AdminNegocioCheck, UpdateView):
     model = Sucursal
     fields = ['nombre', 'direccion']
     template_name = 'core/sucursal_form.html'
     success_url = reverse_lazy('listar_sucursales')
+
+# --- NUEVA VISTA PARA ELIMINAR SUCURSALES ---
+class SucursalDeleteView(AdminNegocioCheck, DeleteView):
+    model = Sucursal
+    success_url = reverse_lazy('listar_sucursales')
+    
+    def form_valid(self, form):
+        messages.success(self.request, "Sucursal eliminada correctamente.")
+        return super().form_valid(form)
 
 @login_required
 def gestionar_usuarios(request):
