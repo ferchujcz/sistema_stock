@@ -2227,7 +2227,7 @@ class AdminNegocioCheck(UserPassesTestMixin):
 class SucursalListView(AdminNegocioCheck, ListView):
     model = Sucursal
     template_name = 'core/sucursales_list.html'
-    context_object_name = 'sucursales'
+    context_object_name = 'lista_sucursales'
 
 class SucursalCreateView(AdminNegocioCheck, CreateView):
     model = Sucursal
