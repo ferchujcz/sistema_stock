@@ -113,12 +113,34 @@
             <nav class="navbar navbar-expand-lg navbar-light bg-light border-bottom px-4 py-3 d-flex justify-content-between">
                 <div class="d-flex align-items-center">
                     <i class="bi bi-list fs-3 me-3" id="menu-toggle" style="cursor: pointer;"></i>
-                    <h4 class="m-0 fw-bold">Gestión de Kiosco</h4>
+                    <h4 class="m-0 fw-bold d-none d-md-block">Gestión de Kiosco</h4>
                 </div>
 
-                <button class="btn btn-outline-secondary rounded-circle" id="theme-toggle" title="Cambiar Tema">
-                    <i class="bi bi-moon-stars-fill"></i>
-                </button>
+                <div class="d-flex align-items-center gap-3">
+                    {% if todas_las_sucursales_contexto %}
+                    <div class="dropdown">
+                        <button class="btn btn-outline-primary dropdown-toggle fw-bold" type="button" id="dropdownSucursal" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-shop me-1"></i> 
+                            {% if request.session.sucursal_seleccionada_id %}
+                                Viendo Local Específico
+                            {% else %}
+                                Viendo Global / Mi Local
+                            {% endif %}
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="dropdownSucursal">
+                            <li><a class="dropdown-item fw-bold text-primary" href="{% url 'seleccionar_sucursal' 0 %}"><i class="bi bi-globe"></i> Ver Todas (Global)</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            {% for suc in todas_las_sucursales_contexto %}
+                                <li><a class="dropdown-item {% if request.session.sucursal_seleccionada_id == suc.id %}active{% endif %}" href="{% url 'seleccionar_sucursal' suc.id %}">{{ suc.nombre }}</a></li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+
+                    <button class="btn btn-outline-secondary rounded-circle" id="theme-toggle" title="Cambiar Tema">
+                        <i class="bi bi-moon-stars-fill"></i>
+                    </button>
+                </div>
             </nav>
 
             <div class="container-fluid px-4 py-4">

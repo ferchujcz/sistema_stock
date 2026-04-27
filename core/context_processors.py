@@ -4,20 +4,15 @@ from .models import Stock, Producto, Sucursal, Configuracion
 from django.utils import timezone
 
 def info_global(request):
-    """
-    Inyecta datos globales en todas las plantillas:
-    1. Nombre del Negocio (Configuración).
-    2. Lista de Sucursales (Para Superuser Y Admins locales).
-    """
     config = Configuracion.objects.first()
     if not config:
         config = Configuracion.objects.create(nombre_negocio="Mi Negocio")
     
     sucursales = []
-    # MAGIA: Ahora chequeamos si es creador O si tiene el rol de admin
     if request.user.is_authenticated:
-        es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
-        if request.user.is_superuser or es_admin_local:
+        # Detectamos si es Superuser O si tiene el rol 'admin'
+        es_admin = request.user.is_superuser or (hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin')
+        if es_admin:
             sucursales = Sucursal.objects.all()
 
     return {

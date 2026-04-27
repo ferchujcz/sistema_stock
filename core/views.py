@@ -51,26 +51,28 @@ from .models import (
 )
 
 
-# --- AGREGAR AL PRINCIPIO DE VIEWS.PY ---
 def obtener_sucursal_usuario(request):
-    """
-    Determina qué sucursal debe ver el usuario.
-    1. Si es EMPLEADO: Devuelve su sucursal asignada (fija).
-    2. Si es ADMIN: Devuelve la sucursal que eligió en la sesión, 
-       o None si quiere ver el "Global" (todas).
-    """
-    if request.user.is_superuser:
-        # El admin manda: si eligió una sucursal en el menú, usamos esa
+    user = request.user
+    if not user.is_authenticated:
+        return None
+
+    es_admin = user.is_superuser or (hasattr(user, 'perfilusuario') and user.perfilusuario.rol == 'admin')
+
+    if es_admin:
+        # 1. Intentamos ver si eligió algo manual en el menú de la barra superior
         sucursal_id = request.session.get('sucursal_seleccionada_id')
         if sucursal_id:
-            return Sucursal.objects.filter(id=sucursal_id).first()
-        return None # None significa "Modo Global" (ver todo)
+            sucursal = Sucursal.objects.filter(id=sucursal_id).first()
+            if sucursal: return sucursal
+        
+        # 2. Plan B automático: usamos la sucursal asignada a su perfil de usuario
+        if hasattr(user, 'perfilusuario') and user.perfilusuario.sucursal:
+            return user.perfilusuario.sucursal
+            
+        return None # Solo si no tiene perfil ni seleccionó nada
     
-    # Si es mortal (empleado), usa la de su perfil
-    try:
-        return request.user.perfilusuario.sucursal
-    except:
-        return None
+    # Si es empleado común, va directo a su sucursal fija
+    return user.perfilusuario.sucursal if hasattr(user, 'perfilusuario') else None
 # ==============================================================================
 # VISTA PRINCIPAL (DASHBOARD)
 # ==============================================================================
