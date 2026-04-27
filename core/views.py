@@ -258,38 +258,49 @@ def stock_detalle(request):
 
     hoy = timezone.now().date()
     hace_30_dias = hoy - timedelta(days=30)
-    query = request.GET.get('q', '')
-
-    # Reemplazá la lógica de búsqueda inicial de stock_detalle por esto:
+    
     filtro = request.GET.get('filtro', 'todos')
     query = request.GET.get('q', '')
 
+    # 1. BASE: Traer TODOS los productos (Sin esconder los que están en cero)
     base_query = Producto.objects.all().order_by('nombre')
-    if not request.user.is_superuser and sucursal_usuario:
-        base_query = base_query.filter(lotes__sucursal=sucursal_usuario).distinct()
 
+    # 2. LA MAGIA MATEMÁTICA (Coalesce): Sumamos stock pero convirtiendo Nulls en 0
+    if sucursal_usuario:
+        base_query = base_query.annotate(
+            stock_total_tmp=Coalesce(Sum('lotes__cantidad', filter=Q(lotes__sucursal=sucursal_usuario)), 0)
+        )
+    else:
+        base_query = base_query.annotate(
+            stock_total_tmp=Coalesce(Sum('lotes__cantidad'), 0)
+        )
+
+    # 3. Aplicar Búsqueda por texto/código
     if query:
         base_query = base_query.filter(Q(nombre__icontains=query) | Q(codigo_barras__icontains=query))
 
-    # MAGIA DE LAS ALERTAS
+    # 4. FILTRO DE ALERTAS (Ahora sí detecta los 0 porque no están escondidos)
     if filtro == 'alertas':
-        # Buscamos productos con stock menor al mínimo, o sin stock, o que vencen en 20 días
-        base_query = base_query.annotate(
-            stock_total_tmp=Sum('lotes__cantidad')
-        ).filter(
-            Q(stock_total_tmp__lt=F('stock_minimo')) | 
-            Q(stock_total_tmp__isnull=True) |
-            Q(lotes__fecha_vencimiento__lte=hoy + timedelta(days=20))
-        )
-    # PAGINACIÓN PRIMERO: Solo agarramos 50 productos para procesar, no toda la base
+        if sucursal_usuario:
+            base_query = base_query.filter(
+                Q(stock_total_tmp__lt=F('stock_minimo')) | 
+                Q(lotes__fecha_vencimiento__lte=hoy + timedelta(days=20), lotes__sucursal=sucursal_usuario, lotes__cantidad__gt=0)
+            ).distinct()
+        else:
+            base_query = base_query.filter(
+                Q(stock_total_tmp__lt=F('stock_minimo')) | 
+                Q(lotes__fecha_vencimiento__lte=hoy + timedelta(days=20), lotes__cantidad__gt=0)
+            ).distinct()
+
+    # 5. Paginación (Cortamos de a 50)
     paginator = Paginator(base_query, 50)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    # Solo hacemos los cálculos matemáticos para los 50 que estamos mostrando
+    # 6. Optimizamos la velocidad de venta en RAM
     productos_ids = [p.id for p in page_obj.object_list]
-    
     ventas_query = DetalleVenta.objects.filter(venta__fecha_hora__gte=hace_30_dias, producto_id__in=productos_ids)
+    
     if sucursal_usuario:
         ventas_query = ventas_query.filter(venta__sucursal=sucursal_usuario)
         
@@ -298,25 +309,25 @@ def stock_detalle(request):
 
     info_consolidada = []
     
-    # Procesamos individualmente para no mezclar Góndola/Depósito
+    # 7. Separación final para la tabla (Góndola vs Depósito)
     for producto in page_obj.object_list:
         lotes = Stock.objects.filter(producto=producto)
-    if sucursal_usuario:
-        lotes = lotes.filter(sucursal=sucursal_usuario)
+        if sucursal_usuario:
+            lotes = lotes.filter(sucursal=sucursal_usuario)
 
-    # ARREGLO PARA QUE NADA QUEDE AFUERA:
         total_gondola = lotes.filter(ubicacion='gondola').aggregate(tot=Sum('cantidad'))['tot'] or 0
-        # Todo lo que NO sea góndola (incluyendo vacíos o errores) va a depósito
         total_deposito = lotes.exclude(ubicacion='gondola').aggregate(tot=Sum('cantidad'))['tot'] or 0
+        
         lote_proximo = lotes.filter(cantidad__gt=0).order_by(F('fecha_vencimiento').asc(nulls_last=True)).first()
         vencimiento_proximo = lote_proximo.fecha_vencimiento if lote_proximo else None
-
         dias_para_vencer = (vencimiento_proximo - hoy).days if vencimiento_proximo else None
         
         ventas_30_dias = ventas_map.get(producto.id, 0)
         velocidad_venta = ventas_30_dias / 30.0 if ventas_30_dias > 0 else 0 
 
         stock_total = total_gondola + total_deposito
+        
+        # Riesgo: Si está en 0, menor al mínimo o se vence antes de venderse
         en_riesgo = stock_total == 0 or stock_total < producto.stock_minimo or (
             velocidad_venta > 0 and dias_para_vencer is not None and (stock_total / velocidad_venta) > dias_para_vencer
         )
@@ -330,7 +341,6 @@ def stock_detalle(request):
             'en_riesgo': en_riesgo
         })
 
-    # Le pegamos nuestra info procesada al objeto paginador para mandarla al HTML
     page_obj.info_procesada = info_consolidada
 
     return render(request, 'core/stock_detalle.html', {
