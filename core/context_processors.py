@@ -7,25 +7,23 @@ def info_global(request):
     """
     Inyecta datos globales en todas las plantillas:
     1. Nombre del Negocio (Configuración).
-    2. Lista de Sucursales (Solo para Admin, para el menú desplegable).
+    2. Lista de Sucursales (Para Superuser Y Admins locales).
     """
-    
-    # 1. Obtener Nombre del Negocio
     config = Configuracion.objects.first()
     if not config:
         config = Configuracion.objects.create(nombre_negocio="Mi Negocio")
-    nombre = config.nombre_negocio
-
-    # 2. Obtener Lista de Sucursales (Solo si es Superuser)
+    
     sucursales = []
-    if request.user.is_authenticated and request.user.is_superuser:
-        sucursales = Sucursal.objects.all()
+    # MAGIA: Ahora chequeamos si es creador O si tiene el rol de admin
+    if request.user.is_authenticated:
+        es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
+        if request.user.is_superuser or es_admin_local:
+            sucursales = Sucursal.objects.all()
 
     return {
-        'nombre_negocio': nombre,
+        'nombre_negocio': config.nombre_negocio,
         'todas_las_sucursales_contexto': sucursales,
     }
-
 def alertas_globales(request):
     """
     Calcula el número total de alertas (burbuja roja)

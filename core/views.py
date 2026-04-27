@@ -304,10 +304,10 @@ def stock_detalle(request):
         if sucursal_usuario:
             lotes = lotes.filter(sucursal=sucursal_usuario)
             
-        # Sumas seguras ignorando lotes vacíos
+        # Sumas seguras ignorando lotes vacíos (ARREGLO DEL STOCK FANTASMA)
         total_gondola = lotes.filter(ubicacion='gondola').aggregate(tot=Sum('cantidad'))['tot'] or 0
-        total_deposito = lotes.filter(ubicacion='deposito').aggregate(tot=Sum('cantidad'))['tot'] or 0
-        
+        # Usamos .exclude para atrapar todo lo que NO sea góndola y contarlo como depósito
+        total_deposito = lotes.exclude(ubicacion='gondola').aggregate(tot=Sum('cantidad'))['tot'] or 0
         lote_proximo = lotes.filter(cantidad__gt=0).order_by(F('fecha_vencimiento').asc(nulls_last=True)).first()
         vencimiento_proximo = lote_proximo.fecha_vencimiento if lote_proximo else None
 
@@ -724,7 +724,12 @@ def registrar_venta(request):
                         producto = get_object_or_404(Producto, id=item['id'])
                         cantidad_a_vender = int(item['cantidad'])
                         
-                        lotes_disponibles = Stock.objects.filter(producto=producto, cantidad__gt=0, ubicacion='gondola', sucursal=sucursal_usuario).order_by('fecha_vencimiento')
+                        # ARREGLO DE VENTAS: Quitamos "ubicacion='gondola'" para que venda de donde haya stock.
+                        # El '-ubicacion' asegura que consuma primero de la 'gondola' y luego del resto.
+                        lotes_disponibles = Stock.objects.filter(
+                            producto=producto, cantidad__gt=0, sucursal=sucursal_usuario
+                        ).order_by('-ubicacion', 'fecha_vencimiento')
+                        
                         cantidad_vendida_total = 0
                         for lote in lotes_disponibles:
                             if cantidad_vendida_total >= cantidad_a_vender: break

@@ -129,6 +129,37 @@
                 })
                 .catch(err => console.error(err));
         }
+        // ==========================================
+        // MAGIA DE CÁLCULO DE PRECIO POR CATEGORÍA
+        // ==========================================
+        const categoriasData = JSON.parse('{{ categorias_json|safe }}');
+        const costoInput = document.querySelector('input[name="costo"]');
+        const precioInput = document.querySelector('input[name="precio_venta"]');
+        const categoriaSelect = document.querySelector('select[name="categoria"]');
+
+        function autocalcularPrecio() {
+            const costo = parseFloat(costoInput.value) || 0;
+            const catId = categoriaSelect.value;
+            
+            // Si el usuario eligió una categoría y esa categoría tiene un porcentaje cargado
+            if (catId && categoriasData[catId]) {
+                const margen = parseFloat(categoriasData[catId]);
+                // Fórmula: Costo * (1 + (Margen / 100))
+                const precioSugerido = costo * (1 + (margen / 100));
+                
+                // Actualizamos el campo de precio y lo iluminamos de verde un segundo
+                precioInput.value = precioSugerido.toFixed(2);
+                precioInput.style.transition = "background-color 0.3s";
+                precioInput.style.backgroundColor = "#d1e7dd"; 
+                setTimeout(() => precioInput.style.backgroundColor = "", 1000);
+            }
+        }
+
+        // Si los campos existen, les decimos que escuchen cuando el usuario escribe o cambia de opción
+        if (costoInput && categoriaSelect && precioInput) {
+            costoInput.addEventListener('input', autocalcularPrecio);
+            categoriaSelect.addEventListener('change', autocalcularPrecio);
+        }
     });
 </script>
 {% endblock %}
