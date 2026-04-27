@@ -301,12 +301,12 @@ def stock_detalle(request):
     # Procesamos individualmente para no mezclar Góndola/Depósito
     for producto in page_obj.object_list:
         lotes = Stock.objects.filter(producto=producto)
-        if sucursal_usuario:
-            lotes = lotes.filter(sucursal=sucursal_usuario)
-            
-        # Sumas seguras ignorando lotes vacíos (ARREGLO DEL STOCK FANTASMA)
+    if sucursal_usuario:
+        lotes = lotes.filter(sucursal=sucursal_usuario)
+
+    # ARREGLO PARA QUE NADA QUEDE AFUERA:
         total_gondola = lotes.filter(ubicacion='gondola').aggregate(tot=Sum('cantidad'))['tot'] or 0
-        # Usamos .exclude para atrapar todo lo que NO sea góndola y contarlo como depósito
+        # Todo lo que NO sea góndola (incluyendo vacíos o errores) va a depósito
         total_deposito = lotes.exclude(ubicacion='gondola').aggregate(tot=Sum('cantidad'))['tot'] or 0
         lote_proximo = lotes.filter(cantidad__gt=0).order_by(F('fecha_vencimiento').asc(nulls_last=True)).first()
         vencimiento_proximo = lote_proximo.fecha_vencimiento if lote_proximo else None
@@ -483,16 +483,20 @@ def detalle_producto_lotes(request, producto_id):
     sucursal_usuario = obtener_sucursal_usuario(request)
     producto = get_object_or_404(Producto, id=producto_id)
 
+    # Ahora, incluso para el Superadmin, si hay una sucursal seleccionada, filtramos.
     lotes_query = Stock.objects.filter(producto=producto, cantidad__gt=0)
-    if not request.user.is_superuser and sucursal_usuario:
+    
+    if sucursal_usuario:
         lotes_query = lotes_query.filter(sucursal=sucursal_usuario)
-    elif not request.user.is_superuser: # Si no es superuser y no tiene sucursal
+    elif not request.user.is_superuser:
         lotes_query = Stock.objects.none()
 
     lotes = lotes_query.order_by('fecha_vencimiento')
-    return render(request, 'core/detalle_producto_lotes.html', {'producto': producto, 'lotes': lotes, 'sucursal_actual': sucursal_usuario})
-
-
+    return render(request, 'core/detalle_producto_lotes.html', {
+        'producto': producto, 
+        'lotes': lotes, 
+        'sucursal_actual': sucursal_usuario
+    })
 
 @login_required
 def contar_inventario(request):
