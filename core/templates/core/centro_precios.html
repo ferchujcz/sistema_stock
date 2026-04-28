@@ -1,0 +1,137 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-currency-dollar text-success"></i> Centro de Precios y Recargos</h1>
+    <a href="{% url 'listar_categorias' %}" class="btn btn-outline-primary">
+        <i class="bi bi-tags"></i> Ir a Gestión de Categorías
+    </a>
+</div>
+
+<div class="row">
+    <div class="col-md-4">
+        <div class="card shadow-sm border-primary mb-4">
+            <div class="card-header bg-primary text-white fw-bold">
+                <i class="bi bi-globe"></i> Recargos Globales del Kiosco
+            </div>
+            <div class="card-body">
+                <p class="text-muted small">Estos porcentajes se aplican a TODOS los productos, excepto a los que agregues a la lista de la derecha.</p>
+                
+                <form method="POST">
+                    {% csrf_token %}
+                    <input type="hidden" name="accion" value="guardar_globales">
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold"><i class="bi bi-credit-card"></i> Recargo Tarjeta/Crédito (%)</label>
+                        <input type="number" step="0.01" name="recargo_credito" class="form-control form-control-lg" value="{{ config.recargo_credito_porcentaje }}">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold"><i class="bi bi-qr-code"></i> Recargo Billeteras/QR (%)</label>
+                        <input type="number" step="0.01" name="recargo_qr" class="form-control form-control-lg" value="{{ config.recargo_qr_porcentaje }}">
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100 fw-bold">Aplicar a Todo el Negocio</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-dark text-white fw-bold d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-star-fill text-warning"></i> Excepciones (Recargos Individuales)</span>
+                <span class="badge bg-light text-dark">{{ productos_rebeldes.count }} Productos</span>
+            </div>
+            <div class="card-body">
+                
+                <div class="input-group mb-4">
+                    <span class="input-group-text bg-light"><i class="bi bi-search"></i> Buscar para separar:</span>
+                    <input type="text" id="buscar-rebelde" class="form-control" placeholder="Ej: Marlboro, Carga Virtual...">
+                </div>
+                <div id="resultados-busqueda" class="list-group position-absolute w-75 shadow" style="z-index: 1000;"></div>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Producto</th>
+                                <th style="width: 120px;">% Tarjeta</th>
+                                <th style="width: 120px;">% QR</th>
+                                <th class="text-end">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in productos_rebeldes %}
+                            <tr>
+                                <td class="fw-bold">{{ p.nombre }}</td>
+                                <form method="POST">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="accion" value="actualizar_rebelde">
+                                    <input type="hidden" name="producto_id" value="{{ p.id }}">
+                                    <td>
+                                        <input type="number" step="0.01" name="recargo_credito_ind" class="form-control form-control-sm" value="{{ p.recargo_credito_individual }}">
+                                    </td>
+                                    <td>
+                                        <input type="number" step="0.01" name="recargo_qr_ind" class="form-control form-control-sm" value="{{ p.recargo_qr_individual }}">
+                                    </td>
+                                    <td class="text-end">
+                                        <button type="submit" class="btn btn-sm btn-success" title="Guardar"><i class="bi bi-check-lg"></i></button>
+                                </form>
+                                        <form method="POST" class="d-inline">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="accion" value="quitar_rebelde">
+                                            <input type="hidden" name="producto_id" value="{{ p.id }}">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Devolver a regla global"><i class="bi bi-x-lg"></i></button>
+                                        </form>
+                                    </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-center text-muted py-4">No hay productos con recargos individuales. Todos usan la regla global.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascript %}
+<script>
+    // JS para buscar y agregar productos a la lista de excepciones
+    const buscador = document.getElementById('buscar-rebelde');
+    const resultados = document.getElementById('resultados-busqueda');
+
+    buscador.addEventListener('input', function() {
+        const term = this.value;
+        if (term.length < 2) { resultados.innerHTML = ''; return; }
+
+        fetch(`/api/buscar-productos/?term=${term}`)
+            .then(res => res.json())
+            .then(data => {
+                resultados.innerHTML = '';
+                data.forEach(p => {
+                    if(!p.aplica_recargo_individual) { // Solo mostramos los que no están separados aún
+                        const btn = document.createElement('button');
+                        btn.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center';
+                        btn.innerHTML = `<span>${p.nombre}</span> <span class="badge bg-primary">Separar</span>`;
+                        btn.onclick = () => {
+                            const form = document.createElement('form');
+                            form.method = 'POST';
+                            form.innerHTML = `{% csrf_token %}<input type="hidden" name="accion" value="agregar_rebelde"><input type="hidden" name="producto_id" value="${p.id}">`;
+                            document.body.appendChild(form);
+                            form.submit();
+                        };
+                        resultados.appendChild(btn);
+                    }
+                });
+            });
+    });
+
+    // Ocultar resultados si se hace click afuera
+    document.addEventListener('click', function(e) {
+        if (e.target !== buscador) resultados.innerHTML = '';
+    });
+</script>
+{% endblock %}

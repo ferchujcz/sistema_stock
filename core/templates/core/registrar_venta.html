@@ -211,6 +211,7 @@ document.addEventListener('DOMContentLoaded', function() {
     let clienteSeleccionado = null;
     let totalCalculado = 0;
 
+
     // --- LÓGICA DE CÁMARA ---
     btnScanCamera.addEventListener('click', function() {
         readerDiv.style.display = 'block';
@@ -293,6 +294,10 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch(`/api/buscar-productos/?term=${query}`)
             .then(response => response.json())
             .then(data => {
+                // --- EL FRENO ANTI-FANTASMAS ---
+                // Si el input está vacío o ya tiene otra cosa, ignoramos estos resultados viejos
+                if (buscarInput.value.trim() !== query) return;
+                
                 resultadosDiv.innerHTML = '';
                 data.forEach(producto => {
                     const div = document.createElement('div');
@@ -304,6 +309,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
             });
     }
+        // Si el usuario hace clic fuera de la caja de búsqueda, la lista se esconde
+document.addEventListener('click', function(e) {
+    if (e.target !== buscarInput && e.target !== resultadosDiv) {
+        resultadosDiv.innerHTML = '';
+        if(resultadosClienteDiv) resultadosClienteDiv.innerHTML = '';
+    }
+});
     
     // --- FUNCIONES DE CARRITO Y PAGO (MISMAS DE ANTES) ---
     if (grillaFavoritos) {

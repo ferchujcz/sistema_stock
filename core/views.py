@@ -2453,3 +2453,57 @@ def logout_view(request):
     logout(request)
     messages.success(request, "Sesión cerrada correctamente. ¡Hasta pronto!")
     return redirect('login') # O el nombre de tu pantalla de login
+
+@login_required
+def centro_precios(request):
+    # Solo Admins pueden entrar acá
+    es_admin = request.user.is_superuser or (hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin')
+    if not es_admin:
+        messages.error(request, "Acceso denegado. Exclusivo para administración de precios.")
+        return redirect('dashboard')
+
+    config = Configuracion.objects.first()
+    if not config:
+        config = Configuracion.objects.create(nombre_negocio="Mi Negocio")
+
+    # Traemos solo los productos que tienen el check de "Recargo Individual" activado
+    productos_rebeldes = Producto.objects.filter(aplica_recargo_individual=True).order_by('nombre')
+
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+
+        # 1. Guardar Recargos Globales
+        if accion == 'guardar_globales':
+            config.recargo_credito_porcentaje = request.POST.get('recargo_credito')
+            config.recargo_qr_porcentaje = request.POST.get('recargo_qr')
+            config.save()
+            messages.success(request, "¡Recargos globales actualizados! Aplican a todo el kiosco.")
+
+        # 2. Quitar un producto de la lista de rebeldes
+        elif accion == 'quitar_rebelde':
+            prod = get_object_or_404(Producto, id=request.POST.get('producto_id'))
+            prod.aplica_recargo_individual = False
+            prod.save()
+            messages.info(request, f"{prod.nombre} ahora usa los recargos globales.")
+
+        # 3. Agregar un nuevo producto a la lista de rebeldes
+        elif accion == 'agregar_rebelde':
+            prod = get_object_or_404(Producto, id=request.POST.get('producto_id'))
+            prod.aplica_recargo_individual = True
+            prod.save()
+            messages.success(request, f"{prod.nombre} fue separado. ¡Ahora editá sus porcentajes!")
+
+        # 4. Actualizar los porcentajes de un producto rebelde específico
+        elif accion == 'actualizar_rebelde':
+            prod = get_object_or_404(Producto, id=request.POST.get('producto_id'))
+            prod.recargo_credito_individual = request.POST.get('recargo_credito_ind')
+            prod.recargo_qr_individual = request.POST.get('recargo_qr_ind')
+            prod.save()
+            messages.success(request, f"Porcentajes actualizados para {prod.nombre}.")
+
+        return redirect('centro_precios')
+
+    return render(request, 'core/centro_precios.html', {
+        'config': config,
+        'productos_rebeldes': productos_rebeldes
+    })

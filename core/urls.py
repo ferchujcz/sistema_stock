@@ -95,4 +95,5 @@ urlpatterns = [
     path('sucursales/eliminar/<int:pk>/', views.SucursalDeleteView.as_view(), name='eliminar_sucursal'),
     path('categorias/<int:categoria_id>/detalle/', views.detalle_categoria, name='detalle_categoria'),
     path('caja/historial/', views.historial_cierres_caja, name='historial_cierres'),
+    path('centro-de-precios/', views.centro_precios, name='centro_precios'),
 ]
