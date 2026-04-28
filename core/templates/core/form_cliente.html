@@ -21,6 +21,16 @@
                             <label class="form-label">DNI</label>
                             <input type="text" name="dni" class="form-control" value="{{ cliente.dni }}">
                         </div>
+                        <div class="mb-3">
+                            <label for="saldo_inicial" class="form-label fw-bold text-danger">
+                                <i class="bi bi-cash-coin"></i> Deuda Inicial (Opcional)
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text">$</span>
+                                <input type="number" step="0.01" class="form-control form-control-lg" id="saldo_inicial" name="saldo_inicial" placeholder="Ej: 5000.00" value="0">
+                            </div>
+                            <div class="form-text">Si el cliente ya te debía plata de antes, anotalo acá. Si es nuevo, dejalo en 0.</div>
+                        </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Teléfono</label>
                             <input type="text" name="telefono" class="form-control" value="{{ cliente.telefono }}">

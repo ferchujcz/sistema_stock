@@ -1646,13 +1646,20 @@ def listar_clientes(request):
 @login_required
 def crear_cliente(request):
     if request.method == 'POST':
+        # Atrapamos el saldo inicial. Si lo dejan vacío, asumimos 0.
+        saldo_inicial_str = request.POST.get('saldo_inicial', '0')
+        try:
+            saldo_inicial = Decimal(saldo_inicial_str) if saldo_inicial_str else Decimal('0.00')
+        except (ValueError, TypeError):
+            saldo_inicial = Decimal('0.00')
+
         try:
             Cliente.objects.create(
                 nombre=request.POST['nombre'],
                 dni=request.POST.get('dni'),
                 telefono=request.POST.get('telefono'),
                 direccion=request.POST.get('direccion'),
-                cuenta_corriente=0 # Empieza sin deuda
+                cuenta_corriente=saldo_inicial # <-- APLICAMOS LA DEUDA PREVIA
             )
             messages.success(request, '¡Cliente registrado!')
             return redirect('listar_clientes')
@@ -1660,7 +1667,6 @@ def crear_cliente(request):
             messages.error(request, f'Error al crear: {e}')
 
     return render(request, 'core/form_cliente.html', {'titulo': 'Nuevo Cliente'})
-
 @login_required
 def editar_cliente(request, cliente_id):
     cliente = get_object_or_404(Cliente, id=cliente_id)
@@ -2522,3 +2528,19 @@ def centro_precios(request):
         'config': config,
         'productos_rebeldes': productos_rebeldes
     })
+
+@login_required
+def buscar_clientes(request):
+    query = request.GET.get('term', '')
+    # Buscamos por nombre o por DNI y traemos los primeros 10 para que sea rápido
+    clientes = Cliente.objects.filter(
+        Q(nombre__icontains=query) | Q(dni__icontains=query)
+    )[:10]
+
+    resultados = [{
+        'id': c.id, 
+        'nombre': c.nombre, 
+        'saldo': float(c.cuenta_corriente)
+    } for c in clientes]
+
+    return JsonResponse(resultados, safe=False)
