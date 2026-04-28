@@ -382,7 +382,7 @@ function actualizarCarrito() {
             if (item.tipo !== 'devolucion') {
                 if (metodoPago === 'efectivo' && config.descuentoEfectivo > 0) {
                     recargoItem = -(itemSubtotal * (config.descuentoEfectivo / 100));
-                } else if (metodoPago === 'credito') {
+                } else if (metodoPago === 'credito'|| metodoPago === 'debito') {
                     // Si tiene tilde, usamos su recargo. Si no, usamos el global.
                     const porcentaje = item.aplica_recargo_individual ? item.recargo_credito_individual : config.recargoCredito;
                     recargoItem = itemSubtotal * (porcentaje / 100);

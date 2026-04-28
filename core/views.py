@@ -673,21 +673,29 @@ def registrar_venta(request):
                         raise Exception('Para "Cuenta Corriente", debes seleccionar un cliente.')
                     cliente = get_object_or_404(Cliente, id=cliente_id)
                 
-                # Calculamos el subtotal de PRODUCTOS (ignorando devoluciones)
+                # 1. Calculamos los subtotales base
                 subtotal_productos = sum(Decimal(str(item['precio'])) * int(item['cantidad']) for item in carrito if item.get('tipo') != 'devolucion')
-                # Calculamos el total de DEVOLUCIONES
                 total_devoluciones = sum(Decimal(str(item['precio'])) * int(item['cantidad']) for item in carrito if item.get('tipo') == 'devolucion')
+                subtotal_venta = subtotal_productos + total_devoluciones
 
-                subtotal_venta = subtotal_productos + total_devoluciones # El subtotal real
-
+                # 2. CÁLCULO PRECISO DE RECARGOS (INCLUYENDO REBELDES Y DÉBITO)
                 descuento_recargo = Decimal('0.00')
-                # Los recargos/descuentos se aplican solo sobre el subtotal de productos
-                if metodo_pago == 'efectivo' and config.descuento_efectivo_porcentaje > 0: 
-                    descuento_recargo = -(subtotal_productos * (config.descuento_efectivo_porcentaje / Decimal('100')))
-                elif metodo_pago == 'credito' and config.recargo_credito_porcentaje > 0: 
-                    descuento_recargo = subtotal_productos * (config.recargo_credito_porcentaje / Decimal('100'))
-                elif metodo_pago == 'qr' and config.recargo_qr_porcentaje > 0: 
-                    descuento_recargo = subtotal_productos * (config.recargo_qr_porcentaje / Decimal('100'))
+                
+                for item in carrito:
+                    if item.get('tipo') != 'devolucion':
+                        producto = get_object_or_404(Producto, id=item['id'])
+                        item_subtotal = Decimal(str(item['precio'])) * int(item['cantidad'])
+                        
+                        if metodo_pago == 'efectivo' and config.descuento_efectivo_porcentaje > 0:
+                            descuento_recargo -= item_subtotal * (config.descuento_efectivo_porcentaje / Decimal('100'))
+                        
+                        elif metodo_pago in ['credito', 'debito']: # <--- ACÁ ENTRA DÉBITO
+                            porcentaje = producto.recargo_credito_individual if producto.aplica_recargo_individual else config.recargo_credito_porcentaje
+                            descuento_recargo += item_subtotal * (porcentaje / Decimal('100'))
+                            
+                        elif metodo_pago == 'qr':
+                            porcentaje = producto.recargo_qr_individual if producto.aplica_recargo_individual else config.recargo_qr_porcentaje
+                            descuento_recargo += item_subtotal * (porcentaje / Decimal('100'))
 
                 total_venta = subtotal_venta + descuento_recargo
                 total_venta_quantized = total_venta.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
