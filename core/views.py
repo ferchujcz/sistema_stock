@@ -707,9 +707,11 @@ def registrar_venta(request):
                 total_venta = subtotal_venta + descuento_recargo
                 total_venta_quantized = total_venta.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
 
-                # Chequeo de límite de crédito
-                if cliente and (cliente.saldo_actual + total_venta_quantized) > cliente.limite_credito:
-                    raise Exception(f'Límite de crédito excedido. Saldo actual: ${cliente.saldo_actual}. Límite: ${cliente.limite_credito}.')
+                # CORRECCIÓN: Usamos 'cuenta_corriente' en lugar de 'saldo_actual'
+                # Chequeo de límite de crédito (usamos un valor alto por defecto si no existe el campo límite)
+                limite = getattr(cliente, 'limite_credito', 999999)
+                if cliente and (cliente.cuenta_corriente + total_venta_quantized) > limite:
+                    raise Exception(f'Límite de crédito excedido. Deuda actual: ${cliente.cuenta_corriente}. Límite: ${limite}.')
 
                 nueva_venta = Venta.objects.create(
                     subtotal=subtotal_venta, 
@@ -718,8 +720,13 @@ def registrar_venta(request):
                     metodo_pago=metodo_pago, 
                     cuotas=cuotas,
                     sucursal=sucursal_usuario,
-                    cliente=cliente # Asigna el cliente (o None)
+                    cliente=cliente 
                 )
+
+                # Si fue fiado, actualizamos la cuenta corriente del cliente
+                if cliente:
+                    cliente.cuenta_corriente += total_venta_quantized
+                    cliente.save()
 
                 # Si fue fiado, actualizamos el saldo del cliente
                 if cliente:
@@ -1642,11 +1649,10 @@ def listar_clientes(request):
         'clientes': clientes,
         'solo_deudores': (filtro_deuda == 'deudores') # Para mostrar un título distinto en el HTML si querés
     })
-
 @login_required
 def crear_cliente(request):
     if request.method == 'POST':
-        # Atrapamos el saldo inicial. Si lo dejan vacío, asumimos 0.
+        # Atrapamos el saldo que el cliente ya debe. Si está vacío, es 0.
         saldo_inicial_str = request.POST.get('saldo_inicial', '0')
         try:
             saldo_inicial = Decimal(saldo_inicial_str) if saldo_inicial_str else Decimal('0.00')
@@ -1659,9 +1665,9 @@ def crear_cliente(request):
                 dni=request.POST.get('dni'),
                 telefono=request.POST.get('telefono'),
                 direccion=request.POST.get('direccion'),
-                cuenta_corriente=saldo_inicial # <-- APLICAMOS LA DEUDA PREVIA
+                cuenta_corriente=saldo_inicial # <-- Guardamos la deuda previa
             )
-            messages.success(request, '¡Cliente registrado!')
+            messages.success(request, '¡Cliente registrado con éxito!')
             return redirect('listar_clientes')
         except Exception as e:
             messages.error(request, f'Error al crear: {e}')
