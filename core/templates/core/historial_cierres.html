@@ -1,0 +1,62 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-safe2 text-primary"></i> Historial de Cierres de Caja</h1>
+    <a href="{% url 'cerrar_turno' %}" class="btn btn-success"><i class="bi bi-plus-lg"></i> Nuevo Cierre</a>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Fecha y Hora</th>
+                        <th>Sucursal</th>
+                        <th>Ventas Efec.</th>
+                        <th>Declarado</th>
+                        <th>Diferencia</th>
+                        <th>Responsable</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for cierre in page_obj %}
+                    <tr>
+                        <td class="ps-4">
+                            <strong>{{ cierre.fecha_cierre_turno|date:"d/m/Y" }}</strong><br>
+                            <small class="text-muted">{{ cierre.fecha_cierre_turno|date:"H:i" }} hs</small>
+                        </td>
+                        <td>{{ cierre.sucursal.nombre }}</td>
+                        <td>${{ cierre.total_ventas_efectivo }}</td>
+                        <td>${{ cierre.monto_en_caja_declarado }}</td>
+                        <td>
+                            {% if cierre.diferencia_caja < 0 %}
+                                <span class="badge bg-danger">-${{ cierre.diferencia_caja|safe|cut:"-" }}</span>
+                            {% elif cierre.diferencia_caja > 0 %}
+                                <span class="badge bg-success">+${{ cierre.diferencia_caja }}</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Sin Dif.</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ cierre.usuario_cierre.username }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="6" class="text-center py-5 text-muted">No hay registros de cierres todavía.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% if page_obj.has_other_pages %}
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Anterior</a></li>{% endif %}
+        <li class="page-item disabled"><span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span></li>
+        {% if page_obj.has_next %}<li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Siguiente</a></li>{% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

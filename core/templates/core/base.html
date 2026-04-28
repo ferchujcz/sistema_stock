@@ -73,8 +73,14 @@
                 </a>
 
                 <div class="menu-category">Historial y Reportes</div>
+                <a href="{% url 'reportes_dashboard' %}" class="list-group-item list-group-item-action bg-transparent second-text">
+                    <i class="bi bi-graph-up-arrow me-2"></i>Balance Financiero
+                </a>
                 <a href="{% url 'historial_ventas' %}" class="list-group-item list-group-item-action bg-transparent second-text">
                     <i class="bi bi-clock-history me-2"></i>Historial Ventas
+                </a>
+                <a href="{% url 'historial_cierres' %}" class="list-group-item list-group-item-action bg-transparent second-text">
+                    <i class="bi bi-safe2 me-2"></i>Historial Cierres
                 </a>
                 <a href="{% url 'analisis_canasta' %}" class="list-group-item list-group-item-action bg-transparent second-text">
                     <i class="bi bi-pie-chart me-2"></i>Análisis Canasta

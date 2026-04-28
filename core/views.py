@@ -2068,6 +2068,30 @@ def cerrar_turno(request):
     }
     return render(request, 'core/cerrar_turno.html', context)
 
+def historial_cierres_caja(request):
+    # Detectamos qué sucursal debe ver el usuario
+    sucursal_usuario = obtener_sucursal_usuario(request)
+    
+    # Traemos los cierres del más nuevo al más viejo
+    cierres_query = CierreTurno.objects.all().order_by('-fecha_cierre_turno')
+    
+    # Filtramos por sucursal si no es el administrador global
+    if not request.user.is_superuser and sucursal_usuario:
+        cierres_query = cierres_query.filter(sucursal=sucursal_usuario)
+    elif not request.user.is_superuser:
+        cierres_query = CierreTurno.objects.none()
+        messages.warning(request, "No tenés permiso para ver cierres globales.")
+
+    # Paginamos de a 20 cierres por página
+    paginator = Paginator(cierres_query, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, 'core/historial_cierres.html', {
+        'page_obj': page_obj,
+        'sucursal_actual': sucursal_usuario
+    })
+
 @login_required
 def cambiar_sucursal_sesion(request, sucursal_id):
     es_admin = request.user.is_superuser or (hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin')
