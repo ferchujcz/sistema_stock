@@ -368,33 +368,39 @@ document.addEventListener('click', function(e) {
 function actualizarCarrito() {
         carritoBody.innerHTML = '';
         let subtotal = 0;
-        let ajusteVenta = 0; // Ahora calculamos el ajuste sumando producto por producto
+        let ajusteVenta = 0; 
 
         const metodoPago = document.querySelector('input[name="metodo_pago"]:checked').value;
+
+        // --- LA REGLA DEL CARRITO MIXTO ---
+        // Se fija si en el carrito hay AL MENOS UN producto que sea "Normal" (que no sea rebelde)
+        const hayProductoNormal = carrito.some(item => item.tipo !== 'devolucion' && !item.aplica_recargo_individual);
 
         carrito.forEach((item, index) => {
             const itemSubtotal = item.cantidad * item.precio;
             subtotal += itemSubtotal;
             
-            // --- LÓGICA DE RECARGO INDIVIDUAL O GLOBAL ---
             let recargoItem = 0;
             
             if (item.tipo !== 'devolucion') {
                 if (metodoPago === 'efectivo' && config.descuentoEfectivo > 0) {
                     recargoItem = -(itemSubtotal * (config.descuentoEfectivo / 100));
-                } else if (metodoPago === 'credito'|| metodoPago === 'debito') {
-                    // Si tiene tilde, usamos su recargo. Si no, usamos el global.
-                    const porcentaje = item.aplica_recargo_individual ? item.recargo_credito_individual : config.recargoCredito;
+                } else if (metodoPago === 'credito' || metodoPago === 'debito') {
+                    // Si hay un producto normal en la mesa, O el producto no es rebelde -> Usamos regla Local
+                    // Solo si TODO el carrito es de rebeldes -> Usamos regla Individual
+                    const porcentaje = (hayProductoNormal || !item.aplica_recargo_individual) 
+                                       ? config.recargoCredito 
+                                       : item.recargo_credito_individual;
                     recargoItem = itemSubtotal * (porcentaje / 100);
                 } else if (metodoPago === 'qr') {
-                    // Lo mismo para QR
-                    const porcentaje = item.aplica_recargo_individual ? item.recargo_qr_individual : config.recargoQR;
+                    const porcentaje = (hayProductoNormal || !item.aplica_recargo_individual) 
+                                       ? config.recargoQR 
+                                       : item.recargo_qr_individual;
                     recargoItem = itemSubtotal * (porcentaje / 100);
                 }
             }
             
             ajusteVenta += recargoItem;
-            // ---------------------------------------------
 
             const tr = document.createElement('tr');
             if (item.tipo === 'devolucion') tr.classList.add('table-success');
