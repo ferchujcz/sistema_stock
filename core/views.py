@@ -678,7 +678,7 @@ def registrar_venta(request):
                 total_devoluciones = sum(Decimal(str(item['precio'])) * int(item['cantidad']) for item in carrito if item.get('tipo') == 'devolucion')
                 subtotal_venta = subtotal_productos + total_devoluciones
 
-                # 2. CÁLCULO PRECISO DE RECARGOS (INCLUYENDO REBELDES Y DÉBITO)
+                # CÁLCULO DE RECARGOS SEGÚN TU LÓGICA FINAL
                 descuento_recargo = Decimal('0.00')
                 
                 for item in carrito:
@@ -686,14 +686,21 @@ def registrar_venta(request):
                         producto = get_object_or_404(Producto, id=item['id'])
                         item_subtotal = Decimal(str(item['precio'])) * int(item['cantidad'])
                         
-                        if metodo_pago == 'efectivo' and config.descuento_efectivo_porcentaje > 0:
+                        if metodo_pago == 'efectivo':
                             descuento_recargo -= item_subtotal * (config.descuento_efectivo_porcentaje / Decimal('100'))
                         
-                        elif metodo_pago in ['credito', 'debito']: # <--- ACÁ ENTRA DÉBITO
-                            porcentaje = producto.recargo_credito_individual if producto.aplica_recargo_individual else config.recargo_credito_porcentaje
+                        elif metodo_pago == 'credito':
+                            # CRÉDITO: El local manda para todo el ticket
+                            descuento_recargo += item_subtotal * (config.recargo_credito_porcentaje / Decimal('100'))
+                        
+                        elif metodo_pago == 'debito':
+                            # DÉBITO: Individual si es rebelde, sino el del local
+                            porcentaje_local = getattr(config, 'recargo_debito_porcentaje', Decimal('0.00'))
+                            porcentaje = producto.recargo_credito_individual if producto.aplica_recargo_individual else porcentaje_local
                             descuento_recargo += item_subtotal * (porcentaje / Decimal('100'))
                             
                         elif metodo_pago == 'qr':
+                            # QR: Individual si es rebelde, sino el del local
                             porcentaje = producto.recargo_qr_individual if producto.aplica_recargo_individual else config.recargo_qr_porcentaje
                             descuento_recargo += item_subtotal * (porcentaje / Decimal('100'))
 

@@ -180,7 +180,8 @@
 const config = {
     descuentoEfectivo: parseFloat('{{ config.descuento_efectivo_porcentaje|default:0 }}'.replace(',', '.')),
     recargoCredito: parseFloat('{{ config.recargo_credito_porcentaje|default:0 }}'.replace(',', '.')),
-    recargoQR: parseFloat('{{ config.recargo_qr_porcentaje|default:0 }}'.replace(',', '.'))
+    recargoQR: parseFloat('{{ config.recargo_qr_porcentaje|default:0 }}'.replace(',', '.')),
+    recargoDebito: parseFloat('{{ config.recargo_debito_porcentaje|default:0 }}'.replace(',', '.'))
 };
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -369,37 +370,32 @@ function actualizarCarrito() {
         carritoBody.innerHTML = '';
         let subtotal = 0;
         let ajusteVenta = 0; 
-
         const metodoPago = document.querySelector('input[name="metodo_pago"]:checked').value;
-
-        // --- LA REGLA DEL CARRITO MIXTO ---
-        // Se fija si en el carrito hay AL MENOS UN producto que sea "Normal" (que no sea rebelde)
-        const hayProductoNormal = carrito.some(item => item.tipo !== 'devolucion' && !item.aplica_recargo_individual);
 
         carrito.forEach((item, index) => {
             const itemSubtotal = item.cantidad * item.precio;
             subtotal += itemSubtotal;
-            
             let recargoItem = 0;
             
             if (item.tipo !== 'devolucion') {
-                if (metodoPago === 'efectivo' && config.descuentoEfectivo > 0) {
+                if (metodoPago === 'efectivo') {
                     recargoItem = -(itemSubtotal * (config.descuentoEfectivo / 100));
-                } else if (metodoPago === 'credito' || metodoPago === 'debito') {
-                    // Si hay un producto normal en la mesa, O el producto no es rebelde -> Usamos regla Local
-                    // Solo si TODO el carrito es de rebeldes -> Usamos regla Individual
-                    const porcentaje = (hayProductoNormal || !item.aplica_recargo_individual) 
-                                       ? config.recargoCredito 
-                                       : item.recargo_credito_individual;
+                } 
+                else if (metodoPago === 'credito') {
+                    // Local manda para todo
+                    recargoItem = itemSubtotal * (config.recargoCredito / 100);
+                } 
+                else if (metodoPago === 'debito') {
+                    // Solo individual si es rebelde, sino local (0)
+                    const porcentaje = item.aplica_recargo_individual ? item.recargo_credito_individual : config.recargoDebito;
                     recargoItem = itemSubtotal * (porcentaje / 100);
-                } else if (metodoPago === 'qr') {
-                    const porcentaje = (hayProductoNormal || !item.aplica_recargo_individual) 
-                                       ? config.recargoQR 
-                                       : item.recargo_qr_individual;
+                } 
+                else if (metodoPago === 'qr') {
+                    // Solo individual si es rebelde, sino local
+                    const porcentaje = item.aplica_recargo_individual ? item.recargo_qr_individual : config.recargoQR;
                     recargoItem = itemSubtotal * (porcentaje / 100);
                 }
             }
-            
             ajusteVenta += recargoItem;
 
             const tr = document.createElement('tr');
