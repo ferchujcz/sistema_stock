@@ -522,12 +522,18 @@ function actualizarCarrito() {
             if (suma < totalCalculado) { alert('Falta dinero para cubrir la venta.'); return; }
             if (f > 0 && !cliente_id) { alert('Para fiar una parte, selecciona un cliente.'); return; }
             
-            // Si hay vuelto, se lo restamos al efectivo guardado
             let efecFinal = e;
             if (suma > totalCalculado) { efecFinal = e - (suma - totalCalculado); }
             
             datosEnvio = { ...datosEnvio, p_efec: efecFinal, p_deb: d, p_cred: c, p_qr: q, p_fiado: f };
         }
+
+ // ==========================================================
+        // BLOQUEO ANTI-DOBLE CLIC: Apagamos el botón y ponemos "Procesando..."
+        // ==========================================================
+        finalizarVentaBtn.disabled = true;
+        const textoOriginal = finalizarVentaBtn.innerHTML;
+        finalizarVentaBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Procesando...';
 
         fetch("{% url 'registrar_venta' %}", {
             method: 'POST',
@@ -537,7 +543,7 @@ function actualizarCarrito() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                alert(data.mensaje);
+                // 1. VACIAR EL CARRITO PRIMERO (Antes de que salga el cartel)
                 carrito = [];
                 clienteSeleccionado = null;
                 clienteIdInput.value = '';
@@ -545,9 +551,28 @@ function actualizarCarrito() {
                 montoAbonaInput.value = '';
                 vueltoDisplay.innerText = '$ 0.00';
                 actualizarCarrito();
-            } else { alert('Error: ' + data.error); }
+
+                // 2. Le quitamos el "foco" al botón para que el Enter no lo active
+                finalizarVentaBtn.blur();
+
+                // 3. Restauramos el botón a su estado normal
+                finalizarVentaBtn.disabled = false;
+                finalizarVentaBtn.innerHTML = textoOriginal;
+
+                // 4. AHORA SÍ, mostramos el cartel (Si aprietan Enter, no pasa nada porque el carrito ya está vacío)
+                alert(data.mensaje);
+                
+            } else { 
+                finalizarVentaBtn.disabled = false;
+                finalizarVentaBtn.innerHTML = textoOriginal;
+                alert('Error: ' + data.error); 
+            }
+        })
+        .catch(error => {
+            finalizarVentaBtn.disabled = false;
+            finalizarVentaBtn.innerHTML = textoOriginal;
+            alert('Error de conexión al procesar la venta.');
         });
-    });
 
     actualizarCarrito();
 });
