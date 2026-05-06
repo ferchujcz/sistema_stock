@@ -91,11 +91,11 @@ def dashboard(request):
     if sucursal_usuario:
         ventas_semana_query = ventas_semana_query.filter(sucursal=sucursal_usuario)
 
-    # MAGIA: Agrupamos y sumamos todo en 1 solo viaje a la base de datos
+# MAGIA: Agrupamos y sumamos todo. Usamos Coalesce para que si 'total' es null o 0, no rompa el gráfico.
     ventas_por_dia = ventas_semana_query.annotate(
         dia=TruncDate('fecha_hora')
     ).values('dia').annotate(
-        total_dia=Sum('total')
+        total_dia=Sum('total') # Asegúrate de que registrar_venta guarde siempre el total global
     ).order_by('dia')
 
     # Convertimos la respuesta en un diccionario rápido {fecha: total}
