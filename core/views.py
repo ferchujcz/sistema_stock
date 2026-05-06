@@ -18,7 +18,7 @@ from django.core.paginator import Paginator
 from django.db import transaction, IntegrityError
 from django.contrib import messages
 from django.utils import timezone
-from django.db.models import Sum, Count,Case, When, IntegerField, Min, F, Q
+from django.db.models import Sum, Count,Case, When, IntegerField, Min, F, Q, DecimalField
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.views.decorators.csrf import csrf_exempt
@@ -703,13 +703,23 @@ def registrar_venta(request):
                             descuento_recargo += item_sub * (perc / Decimal('100'))
 
                 total_venta = (subtotal_venta + descuento_recargo).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-
-                # --- CHEQUEO DE DEUDA (Aquí estaba el error) ---
-                if cliente:
-                    # Usamos cuenta_corriente que es el nombre real del campo
-                    if (cliente.cuenta_corriente + total_venta) > getattr(cliente, 'limite_credito', 999999):
+                if metodo_pago == 'mixto':
+                    monto_efec = Decimal(str(data.get('p_efec', 0)))
+                    monto_deb = Decimal(str(data.get('p_deb', 0)))
+                    monto_cred = Decimal(str(data.get('p_cred', 0)))
+                    monto_qr = Decimal(str(data.get('p_qr', 0)))
+                    monto_fiado = Decimal(str(data.get('p_fiado', 0)))
+                else:
+                    if metodo_pago == 'efectivo': monto_efec = total_venta
+                    elif metodo_pago == 'debito': monto_deb = total_venta
+                    elif metodo_pago == 'credito': monto_cred = total_venta
+                    elif metodo_pago == 'qr': monto_qr = total_venta
+                    elif metodo_pago == 'cuenta_corriente': monto_fiado = total_venta
+                # --- CHEQUEO DE DEUDA FIADA ---
+                monto_a_fiar = monto_fiado
+                if cliente and monto_a_fiar > 0:
+                    if (cliente.cuenta_corriente + monto_a_fiar) > getattr(cliente, 'limite_credito', 999999):
                         raise Exception(f'Límite excedido. Deuda: ${cliente.cuenta_corriente}.')
-
                 nueva_venta = Venta.objects.create(
                     subtotal=subtotal_venta, 
                     descuento_recargo=descuento_recargo.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
@@ -721,8 +731,8 @@ def registrar_venta(request):
                 )
 
                 # --- ACTUALIZAR DEUDA ---
-                if cliente:
-                    cliente.cuenta_corriente += total_venta # ¡Corregido!
+                if cliente and monto_a_fiar > 0:
+                    cliente.cuenta_corriente += monto_a_fiar
                     cliente.save()
 
                 # --- DESCUENTO DE STOCK ---
@@ -1984,18 +1994,23 @@ def cerrar_turno(request):
 
     # 1. Encontrar la fecha del último cierre para esta sucursal
     ultimo_cierre = CierreTurno.objects.filter(sucursal=sucursal_usuario).order_by('-fecha_cierre_turno').first()
-    fecha_inicio = ultimo_cierre.fecha_cierre_turno if ultimo_cierre else timezone.make_aware(datetime.min) # Si no hay cierres, tomar todo
+    fecha_inicio = ultimo_cierre.fecha_cierre_turno if ultimo_cierre else timezone.make_aware(datetime.min)
     fecha_fin = timezone.now()
 
     # 2. Obtener todos los movimientos desde el último cierre
     ventas = Venta.objects.filter(sucursal=sucursal_usuario, fecha_hora__gt=fecha_inicio)
     pagos_clientes = PagoCliente.objects.filter(sucursal=sucursal_usuario, fecha__gt=fecha_inicio)
     pagos_proveedores = PagoProveedor.objects.filter(sucursal=sucursal_usuario, fecha__gt=fecha_inicio)
+    
+    # 3. Calcular totales con el nuevo método mixto
+    total_efectivo = ventas.aggregate(t=Sum(Case(When(metodo_pago='efectivo', then='total'), default='pago_efectivo', output_field=DecimalField())))['t'] or 0
+    total_debito = ventas.aggregate(t=Sum(Case(When(metodo_pago='debito', then='total'), default='pago_debito', output_field=DecimalField())))['t'] or 0
+    total_credito = ventas.aggregate(t=Sum(Case(When(metodo_pago='credito', then='total'), default='pago_credito', output_field=DecimalField())))['t'] or 0
+    total_qr = ventas.aggregate(t=Sum(Case(When(metodo_pago='qr', then='total'), default='pago_qr', output_field=DecimalField())))['t'] or 0
+    
+    total_tarjeta = total_debito + total_credito
 
-    # 3. Calcular totales
-    total_efectivo = ventas.filter(metodo_pago='efectivo').aggregate(total=Sum('total'))['total'] or 0
-    total_tarjeta = ventas.filter(metodo_pago__in=['debito', 'credito']).aggregate(total=Sum('total'))['total'] or 0
-    total_qr = ventas.filter(metodo_pago='qr').aggregate(total=Sum('total'))['total'] or 0
+    # --- ACÁ ESTÁN LAS VARIABLES DECLARADAS ANTES DE USARLAS ---
     total_cobros = pagos_clientes.aggregate(total=Sum('monto'))['total'] or 0
     total_pagos = pagos_proveedores.aggregate(total=Sum('monto'))['total'] or 0
 

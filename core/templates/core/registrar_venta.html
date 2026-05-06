@@ -100,6 +100,8 @@
                         <label class="btn btn-outline-info" for="pago_qr">QR</label>
                         <input type="radio" class="btn-check" name="metodo_pago" id="pago_fiado" value="cuenta_corriente">
                         <label class="btn btn-outline-warning" for="pago_fiado">Cta.Cte.</label>
+                        <input type="radio" class="btn-check" name="metodo_pago" id="pago_mixto" value="mixto">
+                        <label class="btn btn-outline-secondary" for="pago_mixto">Mixto</label>
                     </div>
 
                     <div id="campo-efectivo" class="mb-3 p-3 rounded">
@@ -108,6 +110,19 @@
                         <div class="d-flex justify-content-between align-items-center">
                             <span class="fs-5">Vuelto:</span>
                             <span id="vuelto-display" class="fs-4 fw-bold text-success">$ 0.00</span>
+                        </div>
+                    </div>
+                    <div id="campo-mixto" class="mb-3 p-3 rounded border border-secondary" style="display: none;">
+                        <label class="form-label fw-bold"><i class="bi bi-diagram-3"></i> Pagos Múltiples</label>
+                        <div class="input-group mb-2"><span class="input-group-text" style="width: 90px;">Efectivo</span><input type="number" id="mix-efectivo" class="form-control mix-input" value="0"></div>
+                        <div class="input-group mb-2"><span class="input-group-text" style="width: 90px;">Débito</span><input type="number" id="mix-debito" class="form-control mix-input" value="0"></div>
+                        <div class="input-group mb-2"><span class="input-group-text" style="width: 90px;">Crédito</span><input type="number" id="mix-credito" class="form-control mix-input" value="0"></div>
+                        <div class="input-group mb-2"><span class="input-group-text" style="width: 90px;">QR</span><input type="number" id="mix-qr" class="form-control mix-input" value="0"></div>
+                        <div class="input-group mb-2"><span class="input-group-text" style="width: 90px;">Fiado</span><input type="number" id="mix-fiado" class="form-control mix-input" value="0"></div>
+                        
+                        <div class="d-flex justify-content-between align-items-center mt-3 border-top pt-2">
+                            <span class="fs-6 text-muted">Estado:</span>
+                            <span id="mix-restante" class="fs-5 fw-bold text-danger">Falta $ 0.00</span>
                         </div>
                     </div>
 
@@ -173,10 +188,13 @@
 </div>
 
 {% endblock %}
-
 {% block javascript %}
+<!-- 1. MOTOR DE CÁMARA AÑADIDO -->
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
 <script>
+// Le pasamos las variables del local al sistema visual
 const config = {
     descuentoEfectivo: parseFloat('{{ config.descuento_efectivo_porcentaje|default:0 }}'.replace(',', '.')),
     recargoCredito: parseFloat('{{ config.recargo_credito_porcentaje|default:0 }}'.replace(',', '.')),
@@ -371,6 +389,8 @@ function actualizarCarrito() {
         let subtotal = 0;
         let ajusteVenta = 0; 
         const metodoPago = document.querySelector('input[name="metodo_pago"]:checked').value;
+        // Detector de Carrito Mixto (si hay un producto normal, arrastra a los demás)
+        const hayProductoNormal = carrito.some(item => item.tipo !== 'devolucion' && !item.aplica_recargo_individual);
 
         carrito.forEach((item, index) => {
             const itemSubtotal = item.cantidad * item.precio;
@@ -382,9 +402,12 @@ function actualizarCarrito() {
                     recargoItem = -(itemSubtotal * (config.descuentoEfectivo / 100));
                 } 
                 else if (metodoPago === 'credito') {
-                    // Local manda para todo
-                    recargoItem = itemSubtotal * (config.recargoCredito / 100);
-                } 
+                    // Corregido: Ahora evalúa si hay normales o puros rebeldes igual que el servidor
+                    const porcentaje = (hayProductoNormal || !item.aplica_recargo_individual) 
+                                       ? config.recargoCredito 
+                                       : item.recargo_credito_individual;
+                    recargoItem = itemSubtotal * (porcentaje / 100);
+                }
                 else if (metodoPago === 'debito') {
                     // Solo individual si es rebelde, sino local (0)
                     const porcentaje = item.aplica_recargo_individual ? item.recargo_credito_individual : config.recargoDebito;
@@ -477,18 +500,38 @@ function actualizarCarrito() {
         resultadosClienteDiv.innerHTML = '';
     }
 
-    finalizarVentaBtn.addEventListener('click', function() {
+        finalizarVentaBtn.addEventListener('click', function() {
         const metodoPago = document.querySelector('input[name="metodo_pago"]:checked').value;
         const cuotas = cuotasInput.value;
         const cliente_id = clienteIdInput.value;
 
         if (carrito.length === 0) { alert('El carrito está vacío.'); return; }
-        if (metodoPago === 'cuenta_corriente' && !cliente_id) { alert('Debe seleccionar un cliente.'); buscarClienteInput.focus(); return; }
+        if (metodoPago === 'cuenta_corriente' && !cliente_id) { alert('Debes seleccionar un cliente.'); return; }
+
+        let datosEnvio = { carrito, metodo_pago: metodoPago, cuotas, cliente_id };
+
+        if (metodoPago === 'mixto') {
+            const e = parseFloat(document.getElementById('mix-efectivo').value) || 0;
+            const d = parseFloat(document.getElementById('mix-debito').value) || 0;
+            const c = parseFloat(document.getElementById('mix-credito').value) || 0;
+            const q = parseFloat(document.getElementById('mix-qr').value) || 0;
+            const f = parseFloat(document.getElementById('mix-fiado').value) || 0;
+            
+            const suma = e + d + c + q + f;
+            if (suma < totalCalculado) { alert('Falta dinero para cubrir la venta.'); return; }
+            if (f > 0 && !cliente_id) { alert('Para fiar una parte, selecciona un cliente.'); return; }
+            
+            // Si hay vuelto, se lo restamos al efectivo guardado
+            let efecFinal = e;
+            if (suma > totalCalculado) { efecFinal = e - (suma - totalCalculado); }
+            
+            datosEnvio = { ...datosEnvio, p_efec: efecFinal, p_deb: d, p_cred: c, p_qr: q, p_fiado: f };
+        }
 
         fetch("{% url 'registrar_venta' %}", {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
-            body: JSON.stringify({ carrito, metodo_pago: metodoPago, cuotas, cliente_id })
+            body: JSON.stringify(datosEnvio)
         })
         .then(response => response.json())
         .then(data => {
@@ -569,7 +612,47 @@ function actualizarCarrito() {
                 });
         }, 1000); // Consulta cada 1 segundo
     }
+// Mostrar/Ocultar el panel mixto
+    document.querySelectorAll('input[name="metodo_pago"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            const metodo = radio.value;
+            // Mostramos u ocultamos según corresponda
+            campoCuotas.style.display = (metodo === 'credito') ? 'block' : 'none';
+            campoCliente.style.display = (metodo === 'cuenta_corriente' || metodo === 'mixto') ? 'block' : 'none';
+            campoEfectivo.style.display = (metodo === 'efectivo') ? 'block' : 'none';
+            document.getElementById('campo-mixto').style.display = (metodo === 'mixto') ? 'block' : 'none';
+            
+            actualizarCarrito();
+        });
+    });
 
+    // Calculadora dinámica del panel Mixto
+    document.querySelectorAll('.mix-input').forEach(input => {
+        input.addEventListener('input', calcularMixto);
+    });
+
+    function calcularMixto() {
+        const e = parseFloat(document.getElementById('mix-efectivo').value) || 0;
+        const d = parseFloat(document.getElementById('mix-debito').value) || 0;
+        const c = parseFloat(document.getElementById('mix-credito').value) || 0;
+        const q = parseFloat(document.getElementById('mix-qr').value) || 0;
+        const f = parseFloat(document.getElementById('mix-fiado').value) || 0;
+        
+        const suma = e + d + c + q + f;
+        const falta = totalCalculado - suma;
+        const restanteDisplay = document.getElementById('mix-restante');
+        
+        if (falta > 0) {
+            restanteDisplay.innerText = `Falta $ ${falta.toFixed(2)}`;
+            restanteDisplay.className = "fs-5 fw-bold text-danger";
+        } else if (falta < 0) {
+            restanteDisplay.innerText = `Vuelto $ ${Math.abs(falta).toFixed(2)}`;
+            restanteDisplay.className = "fs-5 fw-bold text-success";
+        } else {
+            restanteDisplay.innerText = "¡Pago Exacto!";
+            restanteDisplay.className = "fs-5 fw-bold text-success";
+        }
+    }
     // Detener el polling si se cierra el modal (opcional, o dejarlo corriendo en segundo plano)
     // document.getElementById('modalConnectMobile').addEventListener('hidden.bs.modal', function () {
     //    if (pollInterval) clearInterval(pollInterval);

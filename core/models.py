@@ -203,7 +203,10 @@ class Venta(models.Model):
         ('credito', 'Crédito'),
         ('qr', 'QR'),
         ('cuenta_corriente','Cta. Cte. (Fiado)'),
+        ('mixto', 'Múltiple / Mixto'),
     ]
+
+    
     metodo_pago = models.CharField(max_length=20, choices=METODO_PAGO_CHOICES, default='efectivo')
     fecha_hora = models.DateTimeField(auto_now_add=True, db_index=True) # <-- AGREGADO
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -212,6 +215,13 @@ class Venta(models.Model):
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     cuotas = models.PositiveIntegerField(default=1)
     sucursal = models.ForeignKey(Sucursal, on_delete=models.CASCADE)
+
+    # --- NUEVAS COLUMNAS PARA PAGOS DIVIDIDOS ---
+    pago_efectivo = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    pago_debito = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    pago_credito = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    pago_qr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    pago_fiado = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     def __str__(self):
         return f"Venta #{self.id} - {self.fecha_hora.strftime('%Y-%m-%d %H:%M')}"
