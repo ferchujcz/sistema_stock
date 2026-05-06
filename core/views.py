@@ -703,6 +703,16 @@ def registrar_venta(request):
                             descuento_recargo += item_sub * (perc / Decimal('100'))
 
                 total_venta = (subtotal_venta + descuento_recargo).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                
+                # =========================================================
+                # CORRECCIÓN URGENTE: Inicializamos TODAS las variables en 0
+                # =========================================================
+                monto_efec = Decimal('0.00')
+                monto_deb = Decimal('0.00')
+                monto_cred = Decimal('0.00')
+                monto_qr = Decimal('0.00')
+                monto_fiado = Decimal('0.00')
+
                 if metodo_pago == 'mixto':
                     monto_efec = Decimal(str(data.get('p_efec', 0)))
                     monto_deb = Decimal(str(data.get('p_deb', 0)))
@@ -715,11 +725,14 @@ def registrar_venta(request):
                     elif metodo_pago == 'credito': monto_cred = total_venta
                     elif metodo_pago == 'qr': monto_qr = total_venta
                     elif metodo_pago == 'cuenta_corriente': monto_fiado = total_venta
+                
                 # --- CHEQUEO DE DEUDA FIADA ---
                 monto_a_fiar = monto_fiado
                 if cliente and monto_a_fiar > 0:
                     if (cliente.cuenta_corriente + monto_a_fiar) > getattr(cliente, 'limite_credito', 999999):
                         raise Exception(f'Límite excedido. Deuda: ${cliente.cuenta_corriente}.')
+                
+                # --- CREACIÓN DE LA VENTA ---
                 nueva_venta = Venta.objects.create(
                     subtotal=subtotal_venta, 
                     descuento_recargo=descuento_recargo.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP),
@@ -727,7 +740,12 @@ def registrar_venta(request):
                     metodo_pago=metodo_pago, 
                     cuotas=cuotas,
                     sucursal=sucursal_usuario,
-                    cliente=cliente
+                    cliente=cliente,
+                    pago_efectivo=monto_efec,
+                    pago_debito=monto_deb,
+                    pago_credito=monto_cred,
+                    pago_qr=monto_qr,
+                    pago_fiado=monto_fiado
                 )
 
                 # --- ACTUALIZAR DEUDA ---
@@ -757,7 +775,6 @@ def registrar_venta(request):
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
 
-    # ... Resto del GET (favoritos, envases, etc) sigue igual ...
     return render(request, 'core/registrar_venta.html', {'productos_favoritos': Producto.objects.filter(es_favorito=True, lotes__sucursal=sucursal_usuario).distinct()})
 @login_required
 def historial_ventas(request):
