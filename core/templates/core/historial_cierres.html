@@ -35,6 +35,7 @@
                         <td class="text-info">${{ cierre.total_ventas_qr }}</td>
                         <td class="text-warning">${{ cierre.total_cobros_fiado }}</td>
                         <td class="border-start fw-bold" style="background-color: rgba(128, 128, 128, 0.1);">${{ cierre.monto_en_caja_declarado }}</td>
+                        <td>    
                             {% if cierre.diferencia_caja < 0 %}
                                 <span class="badge bg-danger fs-6">-${{ cierre.diferencia_caja|safe|cut:"-" }}</span>
                             {% elif cierre.diferencia_caja > 0 %}
