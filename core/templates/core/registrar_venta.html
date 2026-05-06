@@ -230,18 +230,12 @@ document.addEventListener('DOMContentLoaded', function() {
     let clienteSeleccionado = null;
     let totalCalculado = 0;
 
-
     // --- LÓGICA DE CÁMARA ---
     btnScanCamera.addEventListener('click', function() {
         readerDiv.style.display = 'block';
         btnStopContainer.style.display = 'block';
-        
-        // Iniciamos la cámara
         html5QrcodeScanner = new Html5Qrcode("reader");
-        
-        // Configuración: preferimos la cámara trasera
-        const config = { fps: 10, qrbox: { width: 250, height: 150 } }; // Caja rectangular para códigos de barras
-        
+        const config = { fps: 10, qrbox: { width: 250, height: 150 } }; 
         html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess)
         .catch(err => {
             console.error(err);
@@ -252,18 +246,12 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     function onScanSuccess(decodedText, decodedResult) {
-        // Cuando lee un código:
-        // 1. Detenemos la cámara para ahorrar batería
         html5QrcodeScanner.stop().then((ignore) => {
             readerDiv.style.display = 'none';
             btnStopContainer.style.display = 'none';
         }).catch((err) => { console.log(err); });
-
-        // 2. Ponemos el código en el input y buscamos
         buscarInput.value = decodedText;
         buscarPorCodigo(decodedText);
-        
-        // Feedback visual (vibración si el dispositivo lo soporta)
         if (navigator.vibrate) navigator.vibrate(200);
     }
 
@@ -276,8 +264,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-
-    // --- LÓGICA EXISTENTE (BÚSQUEDA, CARRITO, ETC) ---
+    // --- LÓGICA DE BÚSQUEDA ---
     buscarInput.addEventListener('keydown', function(event) {
         if (event.key === 'Enter') {
             event.preventDefault();
@@ -309,14 +296,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function buscarPorNombre(query) {
-         if (query.length < 2) { resultadosDiv.innerHTML = ''; return; }
+        if (query.length < 2) { resultadosDiv.innerHTML = ''; return; }
         fetch(`/api/buscar-productos/?term=${query}`)
             .then(response => response.json())
             .then(data => {
-                // --- EL FRENO ANTI-FANTASMAS ---
-                // Si el input está vacío o ya tiene otra cosa, ignoramos estos resultados viejos
                 if (buscarInput.value.trim() !== query) return;
-                
                 resultadosDiv.innerHTML = '';
                 data.forEach(producto => {
                     const div = document.createElement('div');
@@ -326,17 +310,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     div.onclick = () => agregarAlCarrito(producto);
                     resultadosDiv.appendChild(div);
                 });
-            });
+            })
+            .catch(err => console.error("Error en búsqueda:", err));
     }
-        // Si el usuario hace clic fuera de la caja de búsqueda, la lista se esconde
-document.addEventListener('click', function(e) {
-    if (e.target !== buscarInput && e.target !== resultadosDiv) {
-        resultadosDiv.innerHTML = '';
-        if(resultadosClienteDiv) resultadosClienteDiv.innerHTML = '';
-    }
-});
+
+    document.addEventListener('click', function(e) {
+        if (e.target !== buscarInput && e.target !== resultadosDiv) {
+            resultadosDiv.innerHTML = '';
+            if(resultadosClienteDiv) resultadosClienteDiv.innerHTML = '';
+        }
+    });
     
-    // --- FUNCIONES DE CARRITO Y PAGO (MISMAS DE ANTES) ---
+    // --- CARRITO ---
     if (grillaFavoritos) {
         grillaFavoritos.addEventListener('click', function(event) {
             const boton = event.target.closest('.btn-favorito');
@@ -344,7 +329,10 @@ document.addEventListener('click', function(e) {
                 agregarAlCarrito({
                     id: boton.dataset.id,
                     nombre: boton.dataset.nombre,
-                    precio: parseFloat(boton.dataset.precio)
+                    precio: parseFloat(boton.dataset.precio),
+                    aplica_recargo_individual: false, 
+                    recargo_credito_individual: 0,
+                    recargo_qr_individual: 0
                 });
             }
         });
@@ -384,12 +372,11 @@ document.addEventListener('click', function(e) {
         }
     }
 
-function actualizarCarrito() {
+    function actualizarCarrito() {
         carritoBody.innerHTML = '';
         let subtotal = 0;
         let ajusteVenta = 0; 
         const metodoPago = document.querySelector('input[name="metodo_pago"]:checked').value;
-        // Detector de Carrito Mixto (si hay un producto normal, arrastra a los demás)
         const hayProductoNormal = carrito.some(item => item.tipo !== 'devolucion' && !item.aplica_recargo_individual);
 
         carrito.forEach((item, index) => {
@@ -402,20 +389,17 @@ function actualizarCarrito() {
                     recargoItem = -(itemSubtotal * (config.descuentoEfectivo / 100));
                 } 
                 else if (metodoPago === 'credito') {
-                    // Corregido: Ahora evalúa si hay normales o puros rebeldes igual que el servidor
                     const porcentaje = (hayProductoNormal || !item.aplica_recargo_individual) 
-                                       ? config.recargoCredito 
-                                       : item.recargo_credito_individual;
+                                    ? config.recargoCredito 
+                                    : (item.recargo_credito_individual || 0);
                     recargoItem = itemSubtotal * (porcentaje / 100);
                 }
                 else if (metodoPago === 'debito') {
-                    // Solo individual si es rebelde, sino local (0)
-                    const porcentaje = item.aplica_recargo_individual ? item.recargo_credito_individual : config.recargoDebito;
+                    const porcentaje = item.aplica_recargo_individual ? (item.recargo_credito_individual || 0) : config.recargoDebito;
                     recargoItem = itemSubtotal * (porcentaje / 100);
                 } 
                 else if (metodoPago === 'qr') {
-                    // Solo individual si es rebelde, sino local
-                    const porcentaje = item.aplica_recargo_individual ? item.recargo_qr_individual : config.recargoQR;
+                    const porcentaje = item.aplica_recargo_individual ? (item.recargo_qr_individual || 0) : config.recargoQR;
                     recargoItem = itemSubtotal * (porcentaje / 100);
                 }
             }
@@ -457,7 +441,7 @@ function actualizarCarrito() {
         radio.addEventListener('change', () => {
             const metodo = radio.value;
             campoCuotas.style.display = (metodo === 'credito') ? 'block' : 'none';
-            campoCliente.style.display = (metodo === 'cuenta_corriente') ? 'block' : 'none';
+            campoCliente.style.display = (metodo === 'cuenta_corriente' || metodo === 'mixto') ? 'block' : 'none';
             campoEfectivo.style.display = (metodo === 'efectivo') ? 'block' : 'none';
             
             if (metodo !== 'cuenta_corriente') {
@@ -474,12 +458,12 @@ function actualizarCarrito() {
         });
     });
 
-    // BUSQUEDA CLIENTE
+    // BÚSQUEDA CLIENTE
     buscarClienteInput.addEventListener('keyup', function(event) {
         buscarPorNombreCliente(buscarClienteInput.value);
     });
     function buscarPorNombreCliente(query) {
-         if (query.length < 2) { resultadosClienteDiv.innerHTML = ''; return; }
+        if (query.length < 2) { resultadosClienteDiv.innerHTML = ''; return; }
         fetch(`/api/buscar-clientes/?term=${query}`)
             .then(response => response.json())
             .then(data => {
@@ -501,7 +485,8 @@ function actualizarCarrito() {
         resultadosClienteDiv.innerHTML = '';
     }
 
-        finalizarVentaBtn.addEventListener('click', function() {
+    // FINALIZAR VENTA (A PRUEBA DE DOBLE CLIC Y ENTER)
+    finalizarVentaBtn.addEventListener('click', function() {
         const metodoPago = document.querySelector('input[name="metodo_pago"]:checked').value;
         const cuotas = cuotasInput.value;
         const cliente_id = clienteIdInput.value;
@@ -528,9 +513,7 @@ function actualizarCarrito() {
             datosEnvio = { ...datosEnvio, p_efec: efecFinal, p_deb: d, p_cred: c, p_qr: q, p_fiado: f };
         }
 
- // ==========================================================
-        // BLOQUEO ANTI-DOBLE CLIC: Apagamos el botón y ponemos "Procesando..."
-        // ==========================================================
+        // Bloqueo
         finalizarVentaBtn.disabled = true;
         const textoOriginal = finalizarVentaBtn.innerHTML;
         finalizarVentaBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Procesando...';
@@ -543,25 +526,26 @@ function actualizarCarrito() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // 1. VACIAR EL CARRITO PRIMERO (Antes de que salga el cartel)
+                // Vaciamos primero
                 carrito = [];
                 clienteSeleccionado = null;
                 clienteIdInput.value = '';
                 buscarClienteInput.value = '';
                 montoAbonaInput.value = '';
                 vueltoDisplay.innerText = '$ 0.00';
+                
+                const mixInputs = document.querySelectorAll('.mix-input');
+                if(mixInputs) mixInputs.forEach(inp => inp.value = 0);
+                
                 actualizarCarrito();
 
-                // 2. Le quitamos el "foco" al botón para que el Enter no lo active
+                // Desenfoque y desbloqueo
                 finalizarVentaBtn.blur();
-
-                // 3. Restauramos el botón a su estado normal
                 finalizarVentaBtn.disabled = false;
                 finalizarVentaBtn.innerHTML = textoOriginal;
 
-                // 4. AHORA SÍ, mostramos el cartel (Si aprietan Enter, no pasa nada porque el carrito ya está vacío)
+                // Mostramos cartel (Si tocan enter, el carrito ya está limpio)
                 alert(data.mensaje);
-                
             } else { 
                 finalizarVentaBtn.disabled = false;
                 finalizarVentaBtn.innerHTML = textoOriginal;
@@ -573,86 +557,9 @@ function actualizarCarrito() {
             finalizarVentaBtn.innerHTML = textoOriginal;
             alert('Error de conexión al procesar la venta.');
         });
-
-    actualizarCarrito();
-});
-
-// --- LÓGICA DE ESCÁNER REMOTO (WIFI) ---
-    const btnConnectMobile = document.getElementById('btn-connect-mobile');
-    const modalConnect = new bootstrap.Modal(document.getElementById('modalConnectMobile'));
-    const qrContainer = document.getElementById('qrcode-container');
-    let pollInterval = null;
-    let currentUUID = null;
-
-    btnConnectMobile.addEventListener('click', function() {
-        // 1. Pedir una nueva sesión al servidor
-        fetch('/api/scanner/iniciar/')
-            .then(res => res.json())
-            .then(data => {
-                currentUUID = data.uuid;
-                // 2. Generar el QR con la URL de la sesión
-                qrContainer.innerHTML = ""; // Limpiar anterior
-                // La URL debe ser absoluta (con https://...)
-                const urlMovil = `${window.location.origin}/scanner-remoto/${currentUUID}/`;
-                
-                new QRCode(qrContainer, {
-                    text: urlMovil,
-                    width: 180,
-                    height: 180
-                });
-
-                modalConnect.show();
-                
-                // 3. Empezar a "escuchar" si el celular manda algo (cada 1 seg)
-                startPolling();
-            });
     });
 
-    function startPolling() {
-        if (pollInterval) clearInterval(pollInterval);
-        
-        pollInterval = setInterval(() => {
-            if (!currentUUID) return;
-
-            fetch(`/api/scanner/check/${currentUUID}/`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.nuevo) {
-                        // ¡Llegó un código del celular!
-                        if (data.producto) {
-                            agregarAlCarrito(data.producto);
-                            // Feedback sonoro (opcional)
-                            // const audio = new Audio('/static/beep.mp3'); audio.play();
-                            
-                            // Feedback visual discreto (Toast o notificación)
-                            const toast = document.createElement('div');
-                            toast.className = 'position-fixed bottom-0 end-0 p-3 bg-success text-white rounded m-3';
-                            toast.style.zIndex = 2000;
-                            toast.innerText = `Escaneado: ${data.producto.nombre}`;
-                            document.body.appendChild(toast);
-                            setTimeout(() => toast.remove(), 2000);
-                        } else if (data.error) {
-                            alert("Producto no encontrado: " + data.error);
-                        }
-                    }
-                });
-        }, 1000); // Consulta cada 1 segundo
-    }
-// Mostrar/Ocultar el panel mixto
-    document.querySelectorAll('input[name="metodo_pago"]').forEach(radio => {
-        radio.addEventListener('change', () => {
-            const metodo = radio.value;
-            // Mostramos u ocultamos según corresponda
-            campoCuotas.style.display = (metodo === 'credito') ? 'block' : 'none';
-            campoCliente.style.display = (metodo === 'cuenta_corriente' || metodo === 'mixto') ? 'block' : 'none';
-            campoEfectivo.style.display = (metodo === 'efectivo') ? 'block' : 'none';
-            document.getElementById('campo-mixto').style.display = (metodo === 'mixto') ? 'block' : 'none';
-            
-            actualizarCarrito();
-        });
-    });
-
-    // Calculadora dinámica del panel Mixto
+    // MIXTO INPUTS
     document.querySelectorAll('.mix-input').forEach(input => {
         input.addEventListener('input', calcularMixto);
     });
@@ -679,9 +586,56 @@ function actualizarCarrito() {
             restanteDisplay.className = "fs-5 fw-bold text-success";
         }
     }
-    // Detener el polling si se cierra el modal (opcional, o dejarlo corriendo en segundo plano)
-    // document.getElementById('modalConnectMobile').addEventListener('hidden.bs.modal', function () {
-    //    if (pollInterval) clearInterval(pollInterval);
-    // });
+
+    // ESCÁNER REMOTO
+    const btnConnectMobile = document.getElementById('btn-connect-mobile');
+    const modalConnectMobile = document.getElementById('modalConnectMobile');
+    let modalConnect = null;
+    if (modalConnectMobile) {
+        modalConnect = new bootstrap.Modal(modalConnectMobile);
+    }
+    const qrContainer = document.getElementById('qrcode-container');
+    let pollInterval = null;
+    let currentUUID = null;
+
+    if (btnConnectMobile) {
+        btnConnectMobile.addEventListener('click', function() {
+            fetch('/api/scanner/iniciar/')
+                .then(res => res.json())
+                .then(data => {
+                    currentUUID = data.uuid;
+                    qrContainer.innerHTML = ""; 
+                    const urlMovil = `${window.location.origin}/scanner-remoto/${currentUUID}/`;
+                    new QRCode(qrContainer, { text: urlMovil, width: 180, height: 180 });
+                    modalConnect.show();
+                    startPolling();
+                });
+        });
+    }
+
+    function startPolling() {
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(() => {
+            if (!currentUUID) return;
+            fetch(`/api/scanner/check/${currentUUID}/`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.nuevo) {
+                        if (data.producto) {
+                            agregarAlCarrito(data.producto);
+                            const toast = document.createElement('div');
+                            toast.className = 'position-fixed bottom-0 end-0 p-3 bg-success text-white rounded m-3';
+                            toast.style.zIndex = 2000;
+                            toast.innerText = `Escaneado: ${data.producto.nombre}`;
+                            document.body.appendChild(toast);
+                            setTimeout(() => toast.remove(), 2000);
+                        } else if (data.error) {
+                            alert("Producto no encontrado: " + data.error);
+                        }
+                    }
+                });
+        }, 1000);
+    }
+});
 </script>
 {% endblock %}

@@ -794,19 +794,20 @@ def detalle_venta(request, venta_id):
 def buscar_productos(request):
     query = request.GET.get('term', '')
     
-    # OPTIMIZACIÓN: Buscamos por nombre O por código en la misma caja
     productos = Producto.objects.filter(
         Q(nombre__icontains=query) | Q(codigo_barras__icontains=query)
     )[:10]
     
-    resultados = [{
-        'id': p.id, 
-        'nombre': p.nombre, 
-        'precio': float(p.precio_venta), # Convertimos a float para que el JSON no falle
-        'aplica_recargo_individual': p.aplica_recargo_individual,
-        'recargo_credito_individual': float(p.recargo_credito_individual),
-        'recargo_qr_individual': float(p.recargo_qr_individual)
-    } for p in productos]
+    resultados = []
+    for p in productos:
+        resultados.append({
+            'id': p.id, 
+            'nombre': p.nombre, 
+            'precio': float(p.precio_venta or 0), 
+            'aplica_recargo_individual': p.aplica_recargo_individual or False,
+            'recargo_credito_individual': float(p.recargo_credito_individual or 0),
+            'recargo_qr_individual': float(p.recargo_qr_individual or 0)
+        })
     
     return JsonResponse(resultados, safe=False)
 
@@ -814,17 +815,14 @@ def buscar_productos(request):
 def buscar_producto_por_codigo(request):
     codigo = request.GET.get('codigo', '')
     try:
-        # Buscamos el producto
         producto = Producto.objects.get(codigo_barras=codigo)
-        
-        # CORRECCIÓN: Cambié 'p' por 'producto' para evitar el error de NameError
         resultado = {
             'id': producto.id, 
             'nombre': producto.nombre, 
-            'precio': float(producto.precio_venta),
-            'aplica_recargo_individual': producto.aplica_recargo_individual,
-            'recargo_credito_individual': float(producto.recargo_credito_individual),
-            'recargo_qr_individual': float(producto.recargo_qr_individual)
+            'precio': float(producto.precio_venta or 0),
+            'aplica_recargo_individual': producto.aplica_recargo_individual or False,
+            'recargo_credito_individual': float(producto.recargo_credito_individual or 0),
+            'recargo_qr_individual': float(producto.recargo_qr_individual or 0)
         }
         return JsonResponse(resultado)
     except Producto.DoesNotExist:
