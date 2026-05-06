@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Escáner Remoto</title>
+    
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     
@@ -74,22 +75,24 @@
 
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
-    <script>
+  <script>
         const UUID = "{{ uuid }}";
         const statusDiv = document.getElementById('status-msg');
         const msgText = document.getElementById('msg-text');
         let isProcessing = false;
 
+        // 1. Configuración del escáner manual
+        const html5QrCode = new Html5QrCode("reader");
+        const qrConfig = { fps: 10, qrbox: { width: 250, height: 250 } };
+
         function onScanSuccess(decodedText, decodedResult) {
-            if (isProcessing) return; // Evitar lecturas dobles muy rápidas
+            if (isProcessing) return;
             isProcessing = true;
 
-            // Feedback visual inmediato
             statusDiv.classList.add('success');
             msgText.innerText = "¡Código Enviado!";
             if (navigator.vibrate) navigator.vibrate(200);
 
-            // Enviar a la PC
             fetch(`/api/scanner/enviar/${UUID}/`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -109,9 +112,28 @@
             });
         }
 
-        const html5QrcodeScanner = new Html5QrcodeScanner(
-            "reader", { fps: 10, qrbox: 250 });
-        html5QrcodeScanner.render(onScanSuccess);
+        // 2. FUNCIÓN DE ARRANQUE FORZADO
+        function startScanner() {
+            // Intentamos usar la cámara trasera directamente
+            html5QrCode.start(
+                { facingMode: "environment" }, 
+                qrConfig, 
+                onScanSuccess
+            ).catch(err => {
+                // Si falla, mostramos el error en pantalla para saber qué pasa
+                console.error("Error al iniciar cámara:", err);
+                msgText.innerText = "Error: " + err;
+                document.getElementById('led').style.backgroundColor = "#ef4444";
+                
+                // Si el error es de permisos, avisamos clarito
+                if(err.includes("NotAllowedError")) {
+                    alert("Por favor, dale permiso a la cámara en la configuración del navegador.");
+                }
+            });
+        }
+
+        // Ejecutar apenas cargue la página
+        window.addEventListener('load', startScanner);
     </script>
 </body>
 </html>

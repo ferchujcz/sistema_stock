@@ -89,7 +89,7 @@
                     </div>
                     
                     <label class="form-label mt-2">Método de Pago</label>
-                    <div class="btn-group w-100 mb-3" role="group">
+                    <div class="d-flex flex-wrap gap-2 mb-3" role="group">
                         <input type="radio" class="btn-check" name="metodo_pago" id="pago_efectivo" value="efectivo" checked>
                         <label class="btn btn-outline-success" for="pago_efectivo">Efec.</label>
                         <input type="radio" class="btn-check" name="metodo_pago" id="pago_debito" value="debito">
@@ -469,6 +469,7 @@ function actualizarCarrito() {
                 montoAbonaInput.value = '';
                 vueltoDisplay.innerText = '$ 0.00';
             }
+            document.getElementById('campo-mixto').style.display = (metodo === 'mixto') ? 'block' : 'none';
             actualizarCarrito();
         });
     });
