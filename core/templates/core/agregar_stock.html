@@ -5,14 +5,12 @@
     <div class="text-center mb-5">
         <h2 class="fw-bold mb-3">¿Cómo querés ingresar mercadería hoy?</h2>
         <div class="d-flex justify-content-center gap-3 flex-wrap">
-            
-            <a href="{% url 'agregar_stock' %}" class="btn btn-outline-primary hover-shadow">
+            <a href="{% url 'agregar_stock' %}" class="btn btn-outline-primary active hover-shadow">
                 <i class="bi bi-upc-scan fs-4 d-block"></i> Carga Manual (1 a 1)
             </a>
             <a href="{% url 'importar_stock' %}" class="btn btn-outline-success hover-shadow">
                 <i class="bi bi-file-earmark-spreadsheet fs-4 d-block"></i> Importar Excel
             </a>
-
             <a href="{% url 'cargar_factura_ocr' %}" class="btn btn-outline-info hover-shadow text-dark">
                 <i class="bi bi-camera fs-4 d-block"></i> Foto / Factura
             </a>
@@ -26,22 +24,28 @@
     </div>
 
     <div class="card mb-4 border-0 shadow-sm">
-        <div class="card-body"> 
+        <div class="card-body">
             <label class="form-label fw-bold">Buscar producto para sumar stock:</label>
             <form method="get" action="" id="form-buscador">
-                <div class="input-group input-group-lg">
-                    <input type="text" name="q" id="buscador-stock" 
-                           class="form-control" 
-                           placeholder="Escaneá el código o escribí el nombre..." 
-                           autofocus>
+                <div class="input-group input-group-lg mb-2">
+                    <input type="text" name="q" id="buscador-stock" class="form-control" placeholder="Escaneá el código o escribí el nombre..." autofocus>
                     
-                    {% include 'core/includes/scanner_component.html' %}
+                    <!-- BOTÓN CORREGIDO: TYPE="BUTTON" -->
+                    <button type="button" class="btn btn-outline-secondary" id="btn-scan-camera">
+                        <i class="bi bi-camera"></i> Escanear
+                    </button>
                     
                     <button class="btn btn-primary" type="submit">
                         <i class="bi bi-search"></i> Buscar
                     </button>
                 </div>
             </form>
+            
+            <!-- CONTENEDOR DE LA CÁMARA OCULTO POR DEFECTO -->
+            <div id="reader" style="width: 100%; max-width: 500px; display: none; margin: 0 auto; border: 2px solid #007bff; border-radius: 8px;"></div>
+            <div class="text-center mt-2">
+                <button type="button" class="btn btn-danger btn-sm" id="btn-stop-camera" style="display: none;">Detener Cámara</button>
+            </div>
         </div>
     </div>
 
@@ -63,7 +67,8 @@
                         <tr>
                             <td class="ps-4 fw-bold">{{ p.nombre }}</td>
                             <td><span class="badge bg-secondary">{{ p.codigo_barras }}</span></td>
-                            <td>{{ p.lotes.count }} lotes</td> <td>
+                            <td>{{ p.lotes.count }} lotes</td>
+                            <td>
                                 <a href="{% url 'sumar_stock_producto' p.id %}" class="btn btn-sm btn-success">
                                     <i class="bi bi-plus-lg"></i> Sumar Stock
                                 </a>
@@ -77,16 +82,13 @@
     </div>
     {% elif request.GET.q %}
         <div class="alert alert-warning text-center">
-            No se encontró ningún producto con "{{ request.GET.q }}". 
-            <a href="{% url 'crear_producto' %}" class="fw-bold">¿Crear nuevo?</a>
+            No se encontró ningún producto con "{{ request.GET.q }}".
+            <a href="#" class="fw-bold" data-bs-toggle="modal" data-bs-target="#modalNuevoProducto">¿Crear nuevo?</a>
         </div>
     {% endif %}
 </div>
 
-<style>
-    .hover-shadow:hover { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); transition: all 0.2s; }
-</style>
-
+<!-- Modal para Crear Nuevo -->
 <div class="modal fade" id="modalNuevoProducto" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -131,28 +133,65 @@
 {% endblock %}
 
 {% block javascript %}
+<!-- LIBRERÍA DE CÁMARA DIRECTA -->
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const buscador = document.getElementById('buscador-stock');
+        const btnScan = document.getElementById('btn-scan-camera');
+        const btnStop = document.getElementById('btn-stop-camera');
+        const readerDiv = document.getElementById('reader');
+        let html5QrcodeScanner = null;
 
-        // Al escanear...
-        iniciarScanner(function(codigo) {
-            if (!codigo) return;
-            buscador.value = codigo;
-            verificarProducto(codigo);
+        // 1. INICIAR CÁMARA AL TOCAR BOTÓN
+        btnScan.addEventListener('click', function(e) {
+            e.preventDefault(); 
+            
+            readerDiv.style.display = 'block';
+            btnStop.style.display = 'inline-block';
+            
+            html5QrcodeScanner = new Html5Qrcode("reader");
+            const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+            
+            html5QrcodeScanner.start({ facingMode: "environment" }, config, function(decodedText) {
+                // Cuando lee código, frena cámara
+                html5QrcodeScanner.stop().then(() => {
+                    readerDiv.style.display = 'none';
+                    btnStop.style.display = 'none';
+                });
+                
+                // Llena el input y fuerza la búsqueda
+                buscador.value = decodedText;
+                document.getElementById('form-buscador').submit();
+                
+            }).catch(err => {
+                console.error(err);
+                alert("No se pudo acceder a la cámara. Revisa permisos HTTPs.");
+                readerDiv.style.display = 'none';
+                btnStop.style.display = 'none';
+            });
         });
 
-        // Función para ver si existe o abrir modal
-        function verificarProducto(codigo) {
-            // Si el cartel de "No se encontró" está visible, abrimos el modal
-            const alertNoExiste = document.querySelector('.alert-warning');
-            if (alertNoExiste) {
-                document.getElementById('modal_codigo').value = codigo;
-                new bootstrap.Modal(document.getElementById('modalNuevoProducto')).show();
+        // 2. BOTÓN DETENER
+        btnStop.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.stop().then(() => {
+                    readerDiv.style.display = 'none';
+                    btnStop.style.display = 'none';
+                });
             }
+        });
+
+        // 3. AUTO-MODAL SI NO ENCONTRÓ
+        const alertNoExiste = document.querySelector('.alert-warning');
+        if (alertNoExiste && buscador.value) {
+            document.getElementById('modal_codigo').value = buscador.value;
+            new bootstrap.Modal(document.getElementById('modalNuevoProducto')).show();
         }
 
-        // Guardar por AJAX
+        // 4. GUARDAR AJAX
         document.getElementById('formNuevoProducto').onsubmit = function(e) {
             e.preventDefault();
             const formData = new FormData(this);
@@ -165,7 +204,6 @@
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    // Si se creó, lo mandamos directo a sumar stock
                     window.location.href = `/sumar-stock/${data.id}/`;
                 } else {
                     alert("Error: " + data.message);

@@ -80,77 +80,75 @@ def obtener_sucursal_usuario(request):
 def dashboard(request):
     context = {}
     usuario = request.user
-    hoy = timezone.now().date()
+    hoy_local = timezone.localtime() # <- Zona horaria correcta (Argentina)
+    hoy_fecha = hoy_local.date()
     sucursal_usuario = obtener_sucursal_usuario(request)
 
-  # --- 1. CÁLCULO DE GRÁFICO (Ventas últimos 7 días OPTIMIZADO) ---
-    fecha_limite = hoy - timedelta(days=6)
-    
-    # Preparamos la consulta base
+    # --- 1. CÁLCULO DE GRÁFICO (Ventas últimos 7 días) ---
+    fecha_limite = hoy_fecha - timedelta(days=6)
+
     ventas_semana_query = Venta.objects.filter(fecha_hora__date__gte=fecha_limite)
     if sucursal_usuario:
         ventas_semana_query = ventas_semana_query.filter(sucursal=sucursal_usuario)
 
-# MAGIA: Agrupamos y sumamos todo. Usamos Coalesce para que si 'total' es null o 0, no rompa el gráfico.
     ventas_por_dia = ventas_semana_query.annotate(
         dia=TruncDate('fecha_hora')
     ).values('dia').annotate(
-        total_dia=Sum('total') # Asegúrate de que registrar_venta guarde siempre el total global
+        total_dia=Sum(Coalesce('total', Decimal('0.00')))
     ).order_by('dia')
 
-    # Convertimos la respuesta en un diccionario rápido {fecha: total}
     ventas_dict = {v['dia']: float(v['total_dia']) for v in ventas_por_dia if v['dia']}
 
     ventas_semana_labels = []
     ventas_semana_data = []
-    
-    # Armamos las listas para el gráfico rellenando con 0 los días sin ventas
+
     for i in range(6, -1, -1):
-        dia_actual = hoy - timedelta(days=i)
+        dia_actual = hoy_fecha - timedelta(days=i)
         ventas_semana_labels.append(dia_actual.strftime('%d/%m'))
         ventas_semana_data.append(ventas_dict.get(dia_actual, 0.0))
 
     context['ventas_labels'] = json.dumps(ventas_semana_labels)
     context['ventas_data'] = json.dumps(ventas_semana_data)
     context['total_ventas_semana'] = sum(ventas_semana_data)
-    # -----------------------------------------------------
+
     # --- 2. LÓGICA DE SUPERADMIN ---
     if usuario.is_superuser:
-        ventas_hoy_todas = Venta.objects.filter(fecha_hora__date=hoy)
-        total_vendido_global = ventas_hoy_todas.aggregate(total=Sum('total'))['total'] or Decimal('0.00')
-        ventas_por_sucursal = ventas_hoy_todas.values('sucursal__nombre').annotate(total_vendido=Sum('total')).order_by('sucursal__nombre')
+        ventas_hoy_todas = Venta.objects.filter(fecha_hora__date=hoy_fecha)
+        total_vendido_global = ventas_hoy_todas.aggregate(t=Sum(Coalesce('total', Decimal('0.00'))))['t'] or Decimal('0.00')
+        ventas_por_sucursal = ventas_hoy_todas.values('sucursal__nombre').annotate(total_vendido=Sum(Coalesce('total', Decimal('0.00')))).order_by('sucursal__nombre')
 
         context['ventas_por_sucursal'] = ventas_por_sucursal
         context['total_vendido_global'] = total_vendido_global
         context['es_superadmin'] = True
 
     # --- 3. LÓGICA DE SUCURSAL (Widgets y Predicciones) ---
-    # Mostramos datos si el usuario tiene sucursal (o es admin con sucursal asignada en perfil)
     if sucursal_usuario:
         context['sucursal_actual'] = sucursal_usuario
 
-        # A. Ventas del día
-        ventas_hoy_sucursal = Venta.objects.filter(fecha_hora__date=hoy, sucursal=sucursal_usuario)
-        total_vendido_hoy_sucursal = ventas_hoy_sucursal.aggregate(total=Sum('total'))['total'] or Decimal('0.00')
+        # A. Ventas del día (CORREGIDO: ZONA HORARIA LOCAL)
+        inicio_dia = hoy_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        fin_dia = hoy_local.replace(hour=23, minute=59, second=59, microsecond=999999)
+
+        ventas_hoy_sucursal = Venta.objects.filter(fecha_hora__range=(inicio_dia, fin_dia), sucursal=sucursal_usuario)
+        total_vendido_hoy_sucursal = ventas_hoy_sucursal.aggregate(t=Sum(Coalesce('total', Decimal('0.00'))))['t'] or Decimal('0.00')
         numero_ventas_hoy_sucursal = ventas_hoy_sucursal.count()
+
         context['total_vendido_hoy'] = total_vendido_hoy_sucursal
         context['numero_ventas_hoy'] = numero_ventas_hoy_sucursal
 
-        # B. Predicciones (IA) - CORREGIDO
-        # Buscamos predicciones desde HOY en adelante para esta sucursal
+        # B. Predicciones (IA)
         predicciones = PrediccionVenta.objects.filter(
             sucursal=sucursal_usuario,
-            fecha__gte=hoy
+            fecha__gte=hoy_fecha
         ).aggregate(total_predicho=Sum('cantidad_predicha'))
-        
-        # Si no hay predicción, devolvemos 0
+
         context['prediccion_7_dias'] = predicciones['total_predicho'] or 0
 
         # C. Alertas de vencimiento
         alertas_vencimiento = Stock.objects.filter(
             sucursal=sucursal_usuario,
-            fecha_vencimiento__lte=hoy + timedelta(days=20),
-            fecha_vencimiento__gte=hoy,
+            fecha_vencimiento__lte=hoy_fecha + timedelta(days=20),
+            fecha_vencimiento__gte=hoy_fecha,
             cantidad__gt=0
         ).order_by('fecha_vencimiento')[:5]
         context['alertas_vencimiento'] = alertas_vencimiento
@@ -163,7 +161,7 @@ def dashboard(request):
             stock_total_sucursal__lt=F('stock_minimo')
         ).order_by('stock_total_sucursal')[:5]
         context['alertas_stock_bajo'] = alertas_stock_bajo
-        
+
         # E. Alertas de Stock Sin Fecha (Perecederos)
         alertas_sin_fecha = Producto.objects.filter(
             es_perecedero=True,
@@ -173,11 +171,14 @@ def dashboard(request):
         ).distinct()
         context['alertas_sin_fecha'] = alertas_sin_fecha
 
+        # F. Últimos Cierres
+        ultimos_cierres = CierreTurno.objects.filter(sucursal=sucursal_usuario).order_by('-fecha_cierre_turno')[:5]
+        context['ultimos_cierres'] = ultimos_cierres
+
     elif not usuario.is_superuser:
         messages.warning(request, "Tu usuario no está asignado a ninguna sucursal. Contacta al administrador.")
 
     return render(request, 'core/dashboard.html', context)
-
 # ==============================================================================
 # VISTAS DE STOCK (Filtradas por Sucursal)
 # ==============================================================================
@@ -369,7 +370,12 @@ def agregar_stock(request):
     if not sucursal_usuario:
          messages.error(request, "Tu usuario no está asignado a una sucursal para añadir stock.")
          return redirect('dashboard')
-
+    query = request.GET.get('q', '') # Atrapamos la búsqueda
+    productos = None
+    if query:
+        productos = Producto.objects.filter(
+            Q(nombre__icontains=query) | Q(codigo_barras__icontains=query)
+        )
     if request.method == 'POST':
         producto_id = request.POST['producto']
         cantidad = int(request.POST['cantidad'])
@@ -404,9 +410,10 @@ def agregar_stock(request):
     context = {
         'productos': productos,
     }
-    
-    return render(request, 'core/agregar_stock.html', context)
-
+    return render(request, 'core/agregar_stock.html', {
+        'productos': productos, 
+        'categorias': Categoria.objects.all() # Para el modal de nuevo producto
+    })
 @login_required
 def editar_producto(request, producto_id):
     # --- ESCUDO DE SEGURIDAD ---
