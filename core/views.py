@@ -80,61 +80,61 @@ def obtener_sucursal_usuario(request):
 def dashboard(request):
     context = {}
     usuario = request.user
-    hoy_local = timezone.localtime().date() # PostgreSQL maneja perfecto esto
+    
+    # 1. FECHAS EXACTAS (A prueba de fallos de servidor)
+    hoy_local = timezone.localtime() 
+    inicio_dia = hoy_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    fin_dia = hoy_local.replace(hour=23, minute=59, second=59, microsecond=999999)
+    inicio_semana = inicio_dia - timedelta(days=6)
+    
     sucursal_usuario = obtener_sucursal_usuario(request)
 
-    # --- 1. GRÁFICO DE ÚLTIMOS 7 DÍAS ---
-    fecha_limite = hoy_local - timedelta(days=6)
-    
-    ventas_semana_query = Venta.objects.filter(fecha_hora__date__gte=fecha_limite)
+    # 2. GRÁFICO SEMANAL (Calculado en Python, no en la BD)
+    ventas_semana_query = Venta.objects.filter(fecha_hora__range=(inicio_semana, fin_dia))
     if sucursal_usuario:
         ventas_semana_query = ventas_semana_query.filter(sucursal=sucursal_usuario)
 
-    # Agrupamos por día y sumamos (Usando Coalesce para que los nulos sean 0)
-    ventas_por_dia = ventas_semana_query.annotate(
-        dia=TruncDate('fecha_hora')
-    ).values('dia').annotate(
-        total_dia=Sum(Coalesce('total', Decimal('0.00')))
-    ).order_by('dia')
-
-    ventas_dict = {v['dia']: float(v['total_dia']) for v in ventas_por_dia if v['dia']}
+    ventas_dict = {}
+    for v in ventas_semana_query:
+        # Convertimos a hora argentina antes de agrupar
+        fecha_str = timezone.localtime(v.fecha_hora).strftime('%d/%m')
+        ventas_dict[fecha_str] = ventas_dict.get(fecha_str, 0) + float(v.total)
 
     ventas_semana_labels = []
     ventas_semana_data = []
-    
     for i in range(6, -1, -1):
-        dia_actual = hoy_local - timedelta(days=i)
-        ventas_semana_labels.append(dia_actual.strftime('%d/%m'))
+        dia_actual = (hoy_local - timedelta(days=i)).strftime('%d/%m')
+        ventas_semana_labels.append(dia_actual)
         ventas_semana_data.append(ventas_dict.get(dia_actual, 0.0))
 
     context['ventas_labels'] = json.dumps(ventas_semana_labels)
     context['ventas_data'] = json.dumps(ventas_semana_data)
     context['total_ventas_semana'] = sum(ventas_semana_data)
 
-    # --- 2. LÓGICA SUPERADMIN ---
+    # 3. LÓGICA SUPERADMIN
     if usuario.is_superuser:
-        ventas_hoy_todas = Venta.objects.filter(fecha_hora__date=hoy_local)
+        ventas_hoy_todas = Venta.objects.filter(fecha_hora__range=(inicio_dia, fin_dia))
         context['total_vendido_global'] = ventas_hoy_todas.aggregate(t=Sum(Coalesce('total', Decimal('0.00'))))['t'] or Decimal('0.00')
         context['ventas_por_sucursal'] = ventas_hoy_todas.values('sucursal__nombre').annotate(total_vendido=Sum(Coalesce('total', Decimal('0.00')))).order_by('sucursal__nombre')
         context['es_superadmin'] = True
         context['todas_las_sucursales'] = Sucursal.objects.all()
 
-    # --- 3. LÓGICA DE SUCURSAL ---
+    # 4. LÓGICA DE SUCURSAL
     if sucursal_usuario:
         context['sucursal_actual'] = sucursal_usuario
 
-        # Ventas del día (Usamos __date nativo que en Postgres es exacto)
-        ventas_hoy_sucursal = Venta.objects.filter(fecha_hora__date=hoy_local, sucursal=sucursal_usuario)
+        # Ventas del día actual usando Rango (Ignora desfasajes)
+        ventas_hoy_sucursal = Venta.objects.filter(fecha_hora__range=(inicio_dia, fin_dia), sucursal=sucursal_usuario)
         
         context['total_vendido_hoy'] = ventas_hoy_sucursal.aggregate(t=Sum(Coalesce('total', Decimal('0.00'))))['t'] or Decimal('0.00')
         context['numero_ventas_hoy'] = ventas_hoy_sucursal.count()
 
         # Predicciones
-        predicciones = PrediccionVenta.objects.filter(sucursal=sucursal_usuario, fecha__gte=hoy_local).aggregate(total_predicho=Sum('cantidad_predicha'))
+        predicciones = PrediccionVenta.objects.filter(sucursal=sucursal_usuario, fecha__gte=inicio_dia.date()).aggregate(total_predicho=Sum('cantidad_predicha'))
         context['prediccion_7_dias'] = predicciones['total_predicho'] or 0
 
-        # Alertas varias
-        context['alertas_vencimiento'] = Stock.objects.filter(sucursal=sucursal_usuario, fecha_vencimiento__lte=hoy_local + timedelta(days=20), fecha_vencimiento__gte=hoy_local, cantidad__gt=0).order_by('fecha_vencimiento')[:5]
+        # Alertas
+        context['alertas_vencimiento'] = Stock.objects.filter(sucursal=sucursal_usuario, fecha_vencimiento__lte=inicio_dia.date() + timedelta(days=20), fecha_vencimiento__gte=inicio_dia.date(), cantidad__gt=0).order_by('fecha_vencimiento')[:5]
         
         productos_con_stock_sucursal = Producto.objects.annotate(stock_total_sucursal=Sum('lotes__cantidad', filter=Q(lotes__sucursal=sucursal_usuario))).filter(stock_total_sucursal__isnull=False)
         context['alertas_stock_bajo'] = productos_con_stock_sucursal.filter(stock_total_sucursal__lt=F('stock_minimo')).order_by('stock_total_sucursal')[:5]
