@@ -47,7 +47,7 @@ except ImportError:
 # --- Import de Modelos Locales ---
 from .models import (
     Producto, Stock, Venta, DetalleVenta, Configuracion, Proveedor,
-    Categoria, Sucursal, PerfilUsuario,Cliente, PagoCliente, EnvaseRetornable, StockEnvases, FacturaProveedor, PagoProveedor, CierreTurno, PrediccionVenta
+    Categoria, Sucursal, PerfilUsuario,Cliente, PagoCliente, EnvaseRetornable, StockEnvases, FacturaProveedor, PagoProveedor, CierreTurno, PrediccionVenta, GastoLocal
 )
 
 
@@ -266,6 +266,7 @@ def stock_detalle(request):
     # 5. Paginación (Cortamos de a 50)
     paginator = Paginator(base_query, 50)
     page_number = request.GET.get('page')
+
     page_obj = paginator.get_page(page_number)
 
     # 6. Optimizamos la velocidad de venta en RAM
@@ -311,7 +312,18 @@ def stock_detalle(request):
             'dias_para_vencer': dias_para_vencer,
             'en_riesgo': en_riesgo
         })
-
+# --- ORDENAMIENTO DE TABLA ---
+    orden = request.GET.get('sort', '')
+    if orden == 'cant_asc':
+        info_consolidada.sort(key=lambda x: x['total_gondola'] + x['total_deposito'])
+    elif orden == 'cant_desc':
+        info_consolidada.sort(key=lambda x: x['total_gondola'] + x['total_deposito'], reverse=True)
+    elif orden == 'venc_asc':
+        # Los None (Sin vencimiento) van al final
+        info_consolidada.sort(key=lambda x: (x['vencimiento_proximo'] is None, x['vencimiento_proximo']))
+    elif orden == 'venc_desc':
+        info_consolidada.sort(key=lambda x: (x['vencimiento_proximo'] is None, x['vencimiento_proximo']), reverse=True)
+    # -----------------------------
     page_obj.info_procesada = info_consolidada
 
     return render(request, 'core/stock_detalle.html', {
@@ -1877,102 +1889,95 @@ def sugerencias_compra(request):
 # ==============================================================================
 @login_required
 def reportes_dashboard(request):
-    # --- ESCUDO DE SEGURIDAD ---
     es_admin_local = hasattr(request.user, 'perfilusuario') and request.user.perfilusuario.rol == 'admin'
     if not request.user.is_superuser and not es_admin_local:
         messages.error(request, "Acceso denegado. Función exclusiva para administradores.")
         return redirect('dashboard')
-    # ---------------------------
-    # 1. Obtener parámetros de filtro (GET)
+    
+    sucursal_usuario = obtener_sucursal_usuario(request)
+
+    # --- GUARDAR NUEVO GASTO ---
+    if request.method == 'POST' and 'nuevo_gasto' in request.POST:
+        descripcion = request.POST.get('descripcion')
+        monto = request.POST.get('monto')
+        if descripcion and monto:
+            try:
+                GastoLocal.objects.create(
+                    sucursal=sucursal_usuario if sucursal_usuario else Sucursal.objects.first(),
+                    descripcion=descripcion,
+                    monto=Decimal(monto),
+                    registrado_por=request.user
+                )
+                messages.success(request, "Gasto registrado correctamente.")
+            except Exception as e:
+                messages.error(request, f"Error al guardar gasto: {e}")
+        return redirect('reportes_dashboard')
+
+    # --- FILTROS DE FECHA ---
     fecha_inicio_str = request.GET.get('fecha_inicio')
     fecha_fin_str = request.GET.get('fecha_fin')
     sucursal_id = request.GET.get('sucursal_id')
 
-    # 2. Configurar Fechas (Por defecto: Mes actual)
     hoy = timezone.now()
-    if fecha_inicio_str:
-        fecha_inicio = parse_date(fecha_inicio_str)
-    else:
-        fecha_inicio = hoy.date().replace(day=1) # Primer día del mes
-
-    if fecha_fin_str:
-        fecha_fin = parse_date(fecha_fin_str)
-    else:
-        fecha_fin = hoy.date() # Hoy
-
-    # Ajuste técnico: Para incluir todo el día final, sumamos 1 día al cierre
-    # (Porque la venta es '2024-02-10 15:30' y el filtro '2024-02-10' corta a las 00:00)
+    fecha_inicio = parse_date(fecha_inicio_str) if fecha_inicio_str else hoy.date().replace(day=1)
+    fecha_fin = parse_date(fecha_fin_str) if fecha_fin_str else hoy.date()
     fecha_fin_filtro = fecha_fin + timezone.timedelta(days=1)
 
-    # 3. Base Query
+    # --- FILTRADO SUCURSAL ---
     ventas = Venta.objects.filter(fecha_hora__range=[fecha_inicio, fecha_fin_filtro])
-
-    # 4. Filtro de Sucursal
-    sucursal_usuario = obtener_sucursal_usuario(request)
+    gastos = GastoLocal.objects.filter(fecha__range=[fecha_inicio, fecha_fin_filtro])
     
-    # Si es admin y eligió una sucursal específica en el filtro
     if request.user.is_superuser and sucursal_id:
         ventas = ventas.filter(sucursal_id=sucursal_id)
+        gastos = gastos.filter(sucursal_id=sucursal_id)
         sucursal_actual = Sucursal.objects.get(id=sucursal_id)
-    # Si es admin y no eligió (ve todo)
     elif request.user.is_superuser:
-        sucursal_actual = None # "Todas"
-    # Si es empleado, solo ve su sucursal
+        sucursal_actual = None 
     elif sucursal_usuario:
         ventas = ventas.filter(sucursal=sucursal_usuario)
+        gastos = gastos.filter(sucursal=sucursal_usuario)
         sucursal_actual = sucursal_usuario
     else:
-        ventas = Venta.objects.none() # Seguridad
+        ventas = Venta.objects.none()
+        gastos = GastoLocal.objects.none()
         sucursal_actual = None
 
-    # 5. Cálculos para Gráficos y Tarjetas
-    
-    # A. Ingresos por Método de Pago
+    # --- CÁLCULOS ---
     metodos = ['efectivo', 'debito', 'credito', 'qr', 'cuenta_corriente']
     datos_metodos = []
     labels_metodos = []
-    colors_metodos = ['#28a745', '#007bff', '#dc3545', '#17a2b8', '#ffc107'] # Colores fijos
+    colors_metodos = ['#28a745', '#007bff', '#dc3545', '#17a2b8', '#ffc107'] 
     
     total_ingresos_reales = 0
     total_fiado = 0
 
     for metodo in metodos:
         total = ventas.filter(metodo_pago=metodo).aggregate(Sum('total'))['total__sum'] or 0
-        total = float(total) # Convertir Decimal a float para JSON
-        
+        total = float(total)
         datos_metodos.append(total)
         labels_metodos.append(metodo.capitalize().replace('_', ' '))
-        
-        if metodo == 'cuenta_corriente':
-            total_fiado += total
-        else:
-            total_ingresos_reales += total
+        if metodo == 'cuenta_corriente': total_fiado += total
+        else: total_ingresos_reales += total
 
-    # B. Ventas vs Costos (Estimado simple)
-    # Si tenés costos en DetalleVenta, podrías sumar aquí. Por ahora usaremos Total Venta.
-    
-    # 6. Contexto para el Template
+    total_gastos = gastos.aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
+
     context = {
         'fecha_inicio': fecha_inicio.strftime('%Y-%m-%d'),
         'fecha_fin': fecha_fin.strftime('%Y-%m-%d'),
         'sucursal_seleccionada': sucursal_actual,
         'todas_las_sucursales': Sucursal.objects.all() if request.user.is_superuser else None,
-        
-        # Totales Tarjetas
         'total_general': total_ingresos_reales + total_fiado,
         'total_caja_real': total_ingresos_reales,
         'total_fiado': total_fiado,
+        'total_gastos': float(total_gastos),
+        'caja_neta': total_ingresos_reales - float(total_gastos),
         'cantidad_ventas': ventas.count(),
-        
-        # Datos para Gráficos (JSON)
         'chart_labels': json.dumps(labels_metodos),
         'chart_data': json.dumps(datos_metodos),
         'chart_colors': json.dumps(colors_metodos),
-        
-        # Listado Detallado (Últimas 100)
-        'ventas_listado': ventas.order_by('-fecha_hora')[:100]
+        'ventas_listado': ventas.order_by('-fecha_hora')[:50],
+        'gastos_listado': gastos.order_by('-fecha')[:50]
     }
-
     return render(request, 'core/reportes_dashboard.html', context)
 
 @login_required

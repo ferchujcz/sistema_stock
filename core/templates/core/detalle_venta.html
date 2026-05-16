@@ -41,6 +41,19 @@
                         <strong class="fs-5">Total Pagado:</strong>
                         <strong class="fs-5">${{ venta.total|floatformat:2 }}</strong>
                     </li>
+                    
+                    {% if venta.metodo_pago == 'mixto' %}
+                    <li class="list-group-item border-top-0 pt-0 bg-light">
+                        <div class="row text-muted small mt-2">
+                            <div class="col-12 fw-bold text-dark mb-1"><i class="bi bi-diagram-3"></i> Detalle Pago Múltiple:</div>
+                            {% if venta.pago_efectivo > 0 %}<div class="col-6">• Efectivo: ${{ venta.pago_efectivo }}</div>{% endif %}
+                            {% if venta.pago_debito > 0 %}<div class="col-6">• Débito: ${{ venta.pago_debito }}</div>{% endif %}
+                            {% if venta.pago_credito > 0 %}<div class="col-6">• Crédito: ${{ venta.pago_credito }}</div>{% endif %}
+                            {% if venta.pago_qr > 0 %}<div class="col-6">• QR: ${{ venta.pago_qr }}</div>{% endif %}
+                            {% if venta.pago_fiado > 0 %}<div class="col-6">• Fiado: ${{ venta.pago_fiado }}</div>{% endif %}
+                        </div>
+                    </li>
+                    {% endif %}
                 </ul>
 
                 <h5 class="mt-4">Productos Vendidos:</h5>

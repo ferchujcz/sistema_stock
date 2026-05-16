@@ -39,30 +39,54 @@
     </div>
 </div>
 
-<div class="card shadow-sm rounded-0">
+<style>
+    @media print {
+        body * { visibility: hidden; }
+        #zona-pdf, #zona-pdf * { visibility: visible; }
+        #zona-pdf { position: absolute; left: 0; top: 0; width: 100%; }
+        .no-print { display: none !important; }
+        .table { width: 100% !important; border-collapse: collapse; }
+        .table th, .table td { border: 1px solid #ddd; padding: 8px; font-size: 12px; }
+    }
+</style>
+
+<div class="d-flex justify-content-end mb-2">
+    <button onclick="window.print()" class="btn btn-danger no-print"><i class="bi bi-file-earmark-pdf-fill"></i> Descargar PDF</button>
+</div>
+
+<div class="card shadow-sm rounded-0" id="zona-pdf">
+    <div class="card-header bg-white no-print d-none d-print-block">
+        <h3>Reporte de Stock - {{ sucursal_actual.nombre|default:"Todas" }} - {% now "d/m/Y" %}</h3>
+    </div>
     <div class="card-body">
         <div class="table-responsive">
             <table class="table table-striped table-hover" style="width:100%">
                 <thead>
                     <tr>
                         <th>Producto</th>
-                        <th>Cant. Góndola</th>
-                        <th>Cant. Depósito</th>
-                        <th>Vencimiento</th>
+                        <th>
+                            Cant. Total
+                            <a href="?sort=cant_asc&q={{ query }}&filtro={{ request.GET.filtro }}" class="text-decoration-none no-print"><i class="bi bi-arrow-up-short"></i></a>
+                            <a href="?sort=cant_desc&q={{ query }}&filtro={{ request.GET.filtro }}" class="text-decoration-none no-print"><i class="bi bi-arrow-down-short"></i></a>
+                        </th>
+                        <th>
+                            Vencimiento
+                            <a href="?sort=venc_asc&q={{ query }}&filtro={{ request.GET.filtro }}" class="text-decoration-none no-print"><i class="bi bi-arrow-up-short"></i></a>
+                            <a href="?sort=venc_desc&q={{ query }}&filtro={{ request.GET.filtro }}" class="text-decoration-none no-print"><i class="bi bi-arrow-down-short"></i></a>
+                        </th>
                         <th>Estado</th>
-                        <th>Acciones</th>
+                        <th class="no-print">Acciones</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for info in page_obj.info_procesada %}
                         <tr class="{% if info.dias_para_vencer is not None and info.dias_para_vencer < 0 %}table-dark{% elif info.en_riesgo %}table-danger{% elif info.dias_para_vencer is not None and info.dias_para_vencer <= 20 %}table-warning{% endif %}">
                             <td>{{ info.producto.nombre }}</td>
-                            <td class="fw-bold">{{ info.total_gondola }}</td>
-                            <td class="fw-bold">{{ info.total_deposito }}</td>
+                            <td class="fw-bold">{{ info.total_gondola|add:info.total_deposito }}</td>
                             <td>
                                 {% if info.vencimiento_proximo %}
                                     {{ info.vencimiento_proximo|date:"d/m/Y" }} 
-                                    <small class="text-muted">({{ info.dias_para_vencer }} días)</small>
+                                    <small class="text-muted no-print">({{ info.dias_para_vencer }} días)</small>
                                 {% else %}
                                     <span class="text-muted">No perecedero</span>
                                 {% endif %}
@@ -78,14 +102,12 @@
                                     <span class="badge bg-success">OK</span>
                                 {% endif %}
                             </td>
-                            <td>
-                                <a href="{% url 'detalle_producto_lotes' info.producto.id %}" class="btn btn-sm btn-outline-primary">
-                                    <i class="bi bi-pencil"></i> Lotes
-                                </a>
+                            <td class="no-print">
+                                <a href="{% url 'detalle_producto_lotes' info.producto.id %}" class="btn btn-sm btn-outline-primary">Lotes</a>
                             </td>
                         </tr>
                     {% empty %}
-                        <tr><td colspan="6" class="text-center text-muted">No se encontraron productos.</td></tr>
+                        <tr><td colspan="5" class="text-center text-muted">No se encontraron productos.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
