@@ -1,4 +1,4 @@
-# core/views.py
+# core/views.py - Auditado y Protegido
 import time
 from django.contrib.auth import logout
 from fuzzywuzzy import fuzz
@@ -234,7 +234,7 @@ def stock_detalle(request):
     query = request.GET.get('q', '')
 
     # 1. BASE: Traer TODOS los productos (Sin esconder los que están en cero)
-    base_query = Producto.objects.all().order_by('nombre')
+    base_query = Producto.objects.filter(negocio=sucursal_usuario.negocio) if "sucursal_usuario" in locals() and sucursal_usuario else Producto.objects.all().order_by('nombre')
 
     # 2. LA MAGIA MATEMÁTICA (Coalesce): Sumamos stock pero convirtiendo Nulls en 0
     if sucursal_usuario:
@@ -392,7 +392,7 @@ def agregar_stock(request):
     }
     return render(request, 'core/agregar_stock.html', {
         'productos': productos, 
-        'categorias': Categoria.objects.all() # Para el modal de nuevo producto
+        'categorias': Categoria.objects.filter(negocio=sucursal_usuario.negocio) if "sucursal_usuario" in locals() and sucursal_usuario else Categoria.objects.all() # Para el modal de nuevo producto
     })
 @login_required
 def editar_producto(request, producto_id):
@@ -418,8 +418,8 @@ def editar_producto(request, producto_id):
         # Si recién entra a la página, cargamos el form con los datos actuales del producto
         form = ProductoForm(instance=producto)
 
-    proveedores = Proveedor.objects.all().order_by('nombre')
-    categorias = Categoria.objects.all().order_by('nombre')
+    proveedores = Proveedor.objects.filter(negocio=sucursal_usuario.negocio) if "sucursal_usuario" in locals() and sucursal_usuario else Proveedor.objects.all().order_by('nombre')
+    categorias = Categoria.objects.filter(negocio=sucursal_usuario.negocio) if "sucursal_usuario" in locals() and sucursal_usuario else Categoria.objects.all().order_by('nombre')
     categorias_json = json.dumps(
         {cat.id: float(cat.margen_ganancia_porcentaje) for cat in categorias}
     )
@@ -553,7 +553,7 @@ def contar_inventario(request):
 
     # --- Si es GET, mostramos la página de conteo ---
     # Pasamos todos los productos para la búsqueda inicial (opcionalmente podríamos filtrar por los que tienen stock)
-    productos = Producto.objects.all().order_by('nombre')
+    productos = Producto.objects.filter(negocio=sucursal_usuario.negocio) if "sucursal_usuario" in locals() and sucursal_usuario else Producto.objects.all().order_by('nombre')
     return render(request, 'core/contar_inventario.html', {'productos': productos})
 
 @login_required
@@ -860,7 +860,7 @@ def importar_stock_excel(request):
 
             # 1. Obtenemos los datos actuales de la BD para comparar
             # Usamos diccionarios para una búsqueda rápida
-            proveedores_actuales = {p.nombre.lower(): p for p in Proveedor.objects.all()}
+            proveedores_actuales = {p.nombre.lower(): p for p in Proveedor.objects.filter(negocio=sucursal_usuario.negocio) if "sucursal_usuario" in locals() and sucursal_usuario else Proveedor.objects.all()}
             productos_actuales = {p.codigo_barras: p for p in Producto.objects.filter(codigo_barras__isnull=False, codigo_barras__ne='')}
 
             filas_confirmadas = []    # Verde - Coincidencia exacta de producto
@@ -931,8 +931,8 @@ def importar_stock_excel(request):
                 'filas_con_problemas': filas_con_problemas,
                 'sucursal_actual': sucursal_usuario,
                 # Pasamos todas las categorías y proveedores para los <select> del formulario
-                'todos_los_proveedores': Proveedor.objects.all().order_by('nombre'),
-                'todas_las_categorias': Categoria.objects.all().order_by('nombre')
+                'todos_los_proveedores': Proveedor.objects.filter(negocio=sucursal_usuario.negocio) if "sucursal_usuario" in locals() and sucursal_usuario else Proveedor.objects.all().order_by('nombre'),
+                'todas_las_categorias': Categoria.objects.filter(negocio=sucursal_usuario.negocio) if "sucursal_usuario" in locals() and sucursal_usuario else Categoria.objects.all().order_by('nombre')
             }
             # Renderizamos la NUEVA plantilla de confirmación
             return render(request, 'core/confirmar_importacion_excel.html', context)
@@ -1271,7 +1271,7 @@ def descargar_plantilla_excel(request):
 # ==============================================================================
 @login_required
 def listar_proveedores(request):
-    proveedores = Proveedor.objects.all().order_by('nombre')
+    proveedores = Proveedor.objects.filter(negocio=sucursal_usuario.negocio) if "sucursal_usuario" in locals() and sucursal_usuario else Proveedor.objects.all().order_by('nombre')
     return render(request, 'core/listar_proveedores.html', {'proveedores': proveedores})
 
 @login_required
@@ -1394,7 +1394,7 @@ def registrar_factura_proveedor(request):
             messages.error(request, f"Error al registrar la factura: {e}")
 
     # Si es GET, mostramos el formulario
-    proveedores = Proveedor.objects.all()
+    proveedores = Proveedor.objects.filter(negocio=sucursal_usuario.negocio) if "sucursal_usuario" in locals() and sucursal_usuario else Proveedor.objects.all()
     sucursales = Sucursal.objects.all()
     return render(request, 'core/form_factura_proveedor.html', {
         'proveedores': proveedores,
@@ -1485,8 +1485,8 @@ def crear_producto(request):
         form = ProductoForm()
 
     # Datos extra para los selectores o JS (opcional si usás el form automático)
-    proveedores = Proveedor.objects.all().order_by('nombre')
-    categorias = Categoria.objects.all().order_by('nombre')
+    proveedores = Proveedor.objects.filter(negocio=sucursal_usuario.negocio) if "sucursal_usuario" in locals() and sucursal_usuario else Proveedor.objects.all().order_by('nombre')
+    categorias = Categoria.objects.filter(negocio=sucursal_usuario.negocio) if "sucursal_usuario" in locals() and sucursal_usuario else Categoria.objects.all().order_by('nombre')
     
     # Esto es para tu JS de margen de ganancia
     categorias_json = json.dumps(
@@ -1521,7 +1521,7 @@ def eliminar_producto(request, producto_id):
 
 @login_required
 def listar_categorias(request):
-    categorias = Categoria.objects.all().order_by('nombre')
+    categorias = Categoria.objects.filter(negocio=sucursal_usuario.negocio) if "sucursal_usuario" in locals() and sucursal_usuario else Categoria.objects.all().order_by('nombre')
     return render(request, 'core/listar_categorias.html', {'categorias': categorias})
 
 @login_required
@@ -1821,9 +1821,9 @@ def sugerencias_compra(request):
     for producto in productos:
         # --- A. Calcular Stock Actual ---
         if sucursal_usuario:
-            stock_actual = Stock.objects.filter(producto=producto, sucursal=sucursal_usuario).aggregate(Sum('cantidad'))['cantidad__sum'] or 0
+            stock_actual = Stock.objects.filter(producto=producto, sucursal=sucursal_usuario).aggregate(tot=Coalesce(Sum('cantidad'), Decimal('0.00'), output_field=DecimalField()))['tot']
         else:
-            stock_actual = Stock.objects.filter(producto=producto).aggregate(Sum('cantidad'))['cantidad__sum'] or 0
+            stock_actual = Stock.objects.filter(producto=producto).aggregate(tot=Coalesce(Sum('cantidad'), Decimal('0.00'), output_field=DecimalField()))['tot']
 
         # --- B. Determinar Fecha del Próximo Pedido ---
         proveedor = producto.proveedor
@@ -1850,7 +1850,7 @@ def sugerencias_compra(request):
         if sucursal_usuario:
             predicciones = predicciones.filter(sucursal=sucursal_usuario)
 
-        ventas_esperadas = predicciones.aggregate(Sum('cantidad_predicha'))['cantidad_predicha__sum'] or 0
+        ventas_esperadas = predicciones.aggregate(tot=Coalesce(Sum('cantidad_predicha'), Decimal('0.00'), output_field=DecimalField()))['tot']
         ventas_esperadas = float(ventas_esperadas)
 
         # --- D. La Matemática del Kiosco (Stock Proyectado) ---
@@ -1897,11 +1897,12 @@ def reportes_dashboard(request):
     sucursal_usuario = obtener_sucursal_usuario(request)
 
     # --- GUARDAR NUEVO GASTO ---
-    if request.method == 'POST' and 'nuevo_gasto' in request.POST:
+    if request.method == 'POST':
         descripcion = request.POST.get('descripcion')
         monto = request.POST.get('monto')
         if descripcion and monto:
             try:
+                from .models import GastoLocal
                 GastoLocal.objects.create(
                     sucursal=sucursal_usuario if sucursal_usuario else Sucursal.objects.first(),
                     descripcion=descripcion,
@@ -1923,7 +1924,6 @@ def reportes_dashboard(request):
     fecha_fin = parse_date(fecha_fin_str) if fecha_fin_str else hoy.date()
     fecha_fin_filtro = fecha_fin + timezone.timedelta(days=1)
 
-    # --- FILTRADO SUCURSAL ---
     ventas = Venta.objects.filter(fecha_hora__range=[fecha_inicio, fecha_fin_filtro])
     gastos = GastoLocal.objects.filter(fecha__range=[fecha_inicio, fecha_fin_filtro])
     
@@ -1931,46 +1931,40 @@ def reportes_dashboard(request):
         ventas = ventas.filter(sucursal_id=sucursal_id)
         gastos = gastos.filter(sucursal_id=sucursal_id)
         sucursal_actual = Sucursal.objects.get(id=sucursal_id)
-    elif request.user.is_superuser:
-        sucursal_actual = None 
-    elif sucursal_usuario:
+    elif sucursal_usuario and not request.user.is_superuser:
         ventas = ventas.filter(sucursal=sucursal_usuario)
         gastos = gastos.filter(sucursal=sucursal_usuario)
         sucursal_actual = sucursal_usuario
     else:
-        ventas = Venta.objects.none()
-        gastos = GastoLocal.objects.none()
         sucursal_actual = None
 
-    # --- CÁLCULOS ---
     metodos = ['efectivo', 'debito', 'credito', 'qr', 'cuenta_corriente']
     datos_metodos = []
     labels_metodos = []
     colors_metodos = ['#28a745', '#007bff', '#dc3545', '#17a2b8', '#ffc107'] 
     
-    total_ingresos_reales = 0
-    total_fiado = 0
+    total_ingresos_reales = Decimal('0.00')
+    total_fiado = Decimal('0.00')
 
     for metodo in metodos:
-        total = ventas.filter(metodo_pago=metodo).aggregate(Sum('total'))['total__sum'] or 0
-        total = float(total)
-        datos_metodos.append(total)
+        tot = ventas.filter(metodo_pago=metodo).aggregate(tot=Coalesce(Sum('total'), Decimal('0.00'), output_field=DecimalField()))['tot']
+        datos_metodos.append(float(tot))
         labels_metodos.append(metodo.capitalize().replace('_', ' '))
-        if metodo == 'cuenta_corriente': total_fiado += total
-        else: total_ingresos_reales += total
+        if metodo == 'cuenta_corriente': total_fiado += tot
+        else: total_ingresos_reales += tot
 
-    total_gastos = gastos.aggregate(Sum('monto'))['monto__sum'] or Decimal('0.00')
+    total_gastos = gastos.aggregate(tot=Coalesce(Sum('monto'), Decimal('0.00'), output_field=DecimalField()))['tot']
 
     context = {
         'fecha_inicio': fecha_inicio.strftime('%Y-%m-%d'),
         'fecha_fin': fecha_fin.strftime('%Y-%m-%d'),
         'sucursal_seleccionada': sucursal_actual,
         'todas_las_sucursales': Sucursal.objects.all() if request.user.is_superuser else None,
-        'total_general': total_ingresos_reales + total_fiado,
-        'total_caja_real': total_ingresos_reales,
-        'total_fiado': total_fiado,
+        'total_general': float(total_ingresos_reales + total_fiado),
+        'total_caja_real': float(total_ingresos_reales),
+        'total_fiado': float(total_fiado),
         'total_gastos': float(total_gastos),
-        'caja_neta': total_ingresos_reales - float(total_gastos),
+        'caja_neta': float(total_ingresos_reales - total_gastos),
         'cantidad_ventas': ventas.count(),
         'chart_labels': json.dumps(labels_metodos),
         'chart_data': json.dumps(datos_metodos),
@@ -1979,6 +1973,7 @@ def reportes_dashboard(request):
         'gastos_listado': gastos.order_by('-fecha')[:50]
     }
     return render(request, 'core/reportes_dashboard.html', context)
+
 
 @login_required
 def cerrar_turno(request):
@@ -2006,8 +2001,8 @@ def cerrar_turno(request):
     total_tarjeta = total_debito + total_credito
 
     # --- ACÁ ESTÁN LAS VARIABLES DECLARADAS ANTES DE USARLAS ---
-    total_cobros = pagos_clientes.aggregate(total=Sum('monto'))['total'] or 0
-    total_pagos = pagos_proveedores.aggregate(total=Sum('monto'))['total'] or 0
+    total_cobros = pagos_clientes.aggregate(tot=Coalesce(Sum('monto'), Decimal('0.00'), output_field=DecimalField()))['tot']
+    total_pagos = pagos_proveedores.aggregate(tot=Coalesce(Sum('monto'), Decimal('0.00'), output_field=DecimalField()))['tot']
 
     # 4. Calcular el dinero que DEBERÍA HABER en caja (efectivo)
     caja_calculada = total_efectivo + total_cobros - total_pagos

@@ -1,4 +1,4 @@
-{% extends 'core/base.html' %}
+{% extends 'core/base.html' %} <!-- Auditado -->
 
 {% block content %}
 
@@ -20,10 +20,10 @@
             
             <div class="mb-3 position-relative"> <label class="form-label">Buscar Producto</label>
                 <div class="input-group">
-                    <button class="btn btn-outline-primary" type="button" id="btn-scan-camera" title="Escanear con Cámara">
+                    <button type="button" class="btn btn-outline-primary" type="button" id="btn-scan-camera" title="Escanear con Cámara">
                         <i class="bi bi-camera-fill"></i>
                     </button>
-                    <button class="btn btn-outline-dark" type="button" id="btn-connect-mobile" title="Usar Celular como Escáner">
+                    <button type="button" class="btn btn-outline-dark" type="button" id="btn-connect-mobile" title="Usar Celular como Escáner">
                         <i class="bi bi-qr-code-scan"></i>
                     </button>
                     
@@ -33,7 +33,7 @@
                 
                 <div id="reader"></div>
                 <div class="text-center mt-2" id="btn-stop-container" style="display: none;">
-                    <button class="btn btn-danger btn-sm" id="btn-stop-camera">Detener Cámara</button>
+                    <button type="button" class="btn btn-danger btn-sm" id="btn-stop-camera">Detener Cámara</button>
                 </div>
 
                 <div id="resultados-busqueda" class="list-group search-results-dropdown"></div>
@@ -59,12 +59,12 @@
             <h3 class="mt-4">Venta Rápida (Favoritos)</h3>
             <div class="card shadow-sm">
                 <div class="card-body">
-                    <button type="button" class="btn btn-warning mb-2" data-bs-toggle="modal" data-bs-target="#modalDevolverEnvase">
+                    <button type="button" type="button" class="btn btn-warning mb-2" data-bs-toggle="modal" data-bs-target="#modalDevolverEnvase">
                         <i class="bi bi-recycle"></i> Devolver Envase
                     </button>
                     <div id="grilla-favoritos" class="d-flex flex-wrap gap-2">
                         {% for p in productos_favoritos %}
-                        <button class="btn btn-favorito btn-outline-secondary p-3"
+                        <button type="button" class="btn btn-favorito btn-outline-secondary p-3"
                                 data-id="{{ p.id }}" data-nombre="{{ p.nombre }}" data-precio="{{ p.precio_venta }}">
                             {{ p.nombre }}
                         </button>
@@ -138,7 +138,7 @@
                         <input type="hidden" id="cliente_id">
                     </div>
                     
-                    <button id="finalizar-venta" class="btn btn-success btn-lg w-100 mt-3">Finalizar Venta</button>
+                    <button type="button" id="finalizar-venta" class="btn btn-success btn-lg w-100 mt-3">Finalizar Venta</button>
                 </div>
             </div>
         </div>
@@ -150,12 +150,12 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">Devolución de Envases</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <button type="button" type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <div class="list-group">
             {% for envase in envases_retornables %}
-                <button type="button" class="list-group-item list-group-item-action" data-bs-dismiss="modal"
+                <button type="button" type="button" class="list-group-item list-group-item-action" data-bs-dismiss="modal"
                         onclick="agregarDevolucionAlCarrito('{{ envase.id }}', '{{ envase.nombre }}', '{{ envase.valor_deposito }}')">
                     {{ envase.nombre }}
                     <span class="badge bg-success float-end">${{ envase.valor_deposito|floatformat:0 }}</span>
@@ -172,7 +172,7 @@
     <div class="modal-dialog modal-dialog-centered modal-sm">
         <div class="modal-content text-center">
             <div class="modal-header border-0">
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <h5 class="mb-3">Escanear para Conectar</h5>
@@ -415,7 +415,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </td>
                 <td>$${item.precio.toFixed(2)}</td>
                 <td>$${itemSubtotal.toFixed(2)}</td>
-                <td><button class="btn btn-danger btn-sm" onclick="modificarCantidad(${index}, -Infinity)"><i class="bi bi-trash"></i></button></td>
+                <td><button type="button" class="btn btn-danger btn-sm" onclick="modificarCantidad(${index}, -Infinity)"><i class="bi bi-trash"></i></button></td>
             `;
             carritoBody.appendChild(tr);
         });

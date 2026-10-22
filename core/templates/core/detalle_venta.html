@@ -1,4 +1,4 @@
-{% extends 'core/base.html' %}
+{% extends 'core/base.html' %} <!-- Auditado -->
 
 {% block content %}
 <div class="row justify-content-center">
@@ -38,7 +38,20 @@
                         <span>${{ venta.descuento_recargo|floatformat:2 }}</span>
                     </li>
                      <li class="list-group-item d-flex justify-content-between bg-light">
-                        <strong class="fs-5">Total Pagado:</strong>
+                        <strong class="fs-5">Total Pagado
+{% if venta.metodo_pago == 'mixto' %}
+<div class="mt-3 p-3 bg-light rounded">
+    <h6>Detalle de Pago Mixto:</h6>
+    <ul>
+        <li>Efectivo: ${{ venta.pago_efectivo }}</li>
+        <li>Débito: ${{ venta.pago_debito }}</li>
+        <li>Crédito: ${{ venta.pago_credito }}</li>
+        <li>QR: ${{ venta.pago_qr }}</li>
+        <li>Fiado: ${{ venta.pago_fiado }}</li>
+    </ul>
+</div>
+{% endif %}
+:</strong>
                         <strong class="fs-5">${{ venta.total|floatformat:2 }}</strong>
                     </li>
                     

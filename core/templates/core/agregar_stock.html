@@ -1,4 +1,4 @@
-{% extends 'core/base.html' %}
+{% extends 'core/base.html' %} <!-- Auditado -->
 
 {% block content %}
 <div class="container mt-4">
@@ -31,11 +31,11 @@
                     <input type="text" name="q" id="buscador-stock" class="form-control" placeholder="Escaneá el código o escribí el nombre..." autofocus>
                     
                     <!-- BOTÓN CORREGIDO: TYPE="BUTTON" -->
-                    <button type="button" class="btn btn-outline-secondary" id="btn-scan-camera">
+                    <button type="button" type="button" class="btn btn-outline-secondary" id="btn-scan-camera">
                         <i class="bi bi-camera"></i> Escanear
                     </button>
                     
-                    <button class="btn btn-primary" type="submit">
+                    <button type="button" class="btn btn-primary" type="submit">
                         <i class="bi bi-search"></i> Buscar
                     </button>
                 </div>
@@ -44,7 +44,7 @@
             <!-- CONTENEDOR DE LA CÁMARA OCULTO POR DEFECTO -->
             <div id="reader" style="width: 100%; max-width: 500px; display: none; margin: 0 auto; border: 2px solid #007bff; border-radius: 8px;"></div>
             <div class="text-center mt-2">
-                <button type="button" class="btn btn-danger btn-sm" id="btn-stop-camera" style="display: none;">Detener Cámara</button>
+                <button type="button" type="button" class="btn btn-danger btn-sm" id="btn-stop-camera" style="display: none;">Detener Cámara</button>
             </div>
         </div>
     </div>
@@ -94,7 +94,7 @@
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title">✨ Crear Producto Nuevo</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="formNuevoProducto">
                 {% csrf_token %}
@@ -123,7 +123,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Guardar y Continuar</button>
                 </div>
             </form>
