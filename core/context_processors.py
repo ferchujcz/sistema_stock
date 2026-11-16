@@ -41,10 +41,20 @@ def info_global(request):
             except ValueError:
                 dias_vencimiento = None
 
+    permisos_usuario = {}
+    es_admin_total = False
+    if request.user.is_authenticated:
+        perfil = getattr(request.user, 'perfilusuario', None)
+        es_admin_total = request.user.is_superuser or (perfil and perfil.rol == 'admin')
+        if not es_admin_total and perfil and isinstance(perfil.permisos, dict):
+            permisos_usuario = perfil.permisos
+
     return {
         'nombre_negocio': config.nombre_negocio,
         'todas_las_sucursales_contexto': sucursales,
         'dias_vencimiento_servidor': dias_vencimiento,
+        'es_admin_total': es_admin_total,
+        'permisos_usuario': permisos_usuario,
     }
 def alertas_globales(request):
     """
@@ -74,7 +84,13 @@ def alertas_globales(request):
         # Usuario sin perfil ni permisos
         return {'alertas_count': 0}
 
-    # --- INICIO DE CÁLCULOS ---
+    # --- INICIO DE CÁLCULOS (con caché de 60s para acelerar cada carga) ---
+    from django.core.cache import cache
+    cache_key = f"alertas_globales_{usuario.id}_{sucursal_activa.id if sucursal_activa else 'all'}"
+    cached_val = cache.get(cache_key)
+    if cached_val is not None:
+        return cached_val
+
     hoy = timezone.now().date()
     total_alertas = 0
 
@@ -127,6 +143,6 @@ def alertas_globales(request):
     
     total_alertas += sin_fecha
 
-    return {
-        'alertas_count': total_alertas
-    }
+    res = {'alertas_count': total_alertas}
+    cache.set(cache_key, res, 60)
+    return res

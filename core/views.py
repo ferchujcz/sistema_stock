@@ -1902,7 +1902,7 @@ def reportes_dashboard(request):
         monto = request.POST.get('monto')
         if descripcion and monto:
             try:
-                from .models import GastoLocal
+                # GastoLocal ya importado arriba
                 GastoLocal.objects.create(
                     sucursal=sucursal_usuario if sucursal_usuario else Sucursal.objects.first(),
                     descripcion=descripcion,
