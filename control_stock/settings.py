@@ -139,3 +139,41 @@ CACHES = {
         'LOCATION': 'unique-snowflake',
     }
 }
+
+
+# =========================================================
+# NOTIFICACIONES TELEGRAM Y AVISO DE VENCIMIENTO SERVIDOR
+# =========================================================
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '')
+FECHA_VENCIMIENTO_SERVIDOR = os.environ.get('FECHA_VENCIMIENTO_SERVIDOR', '')  # Formato: YYYY-MM-DD
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '[{levelname}] {asctime} {module}: {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'telegram': {
+            'level': 'ERROR',
+            'class': 'core.telegram_utils.TelegramErrorHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django.request': {
+            'handlers': ['telegram'],
+            'level': 'ERROR',
+            'propagate': True,
+        },
+        'core': {
+            'handlers': ['telegram'],
+            'level': 'ERROR',
+            'propagate': True,
+        },
+    },
+}

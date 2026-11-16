@@ -161,6 +161,24 @@
                         {% endfor %}
                 {% endif %}
                 
+                {% if dias_vencimiento_servidor != None and dias_vencimiento_servidor <= 20 %}
+                <div id="aviso-vencimiento-servidor" class="alert alert-warning alert-dismissible fade show py-2 px-3 mb-3 small shadow-sm" role="alert" style="display:none;">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    {% if dias_vencimiento_servidor > 0 %}
+                        Tenés <strong>{{ dias_vencimiento_servidor }} día{{ dias_vencimiento_servidor|pluralize }}</strong> para pagar tu mensualidad o el servicio se cortará.
+                    {% elif dias_vencimiento_servidor == 0 %}
+                        <strong>Hoy vence tu mensualidad.</strong> Realizá el pago para evitar la suspensión del servicio.
+                    {% else %}
+                        <strong>Tu mensualidad está vencida.</strong> Realizá el pago para evitar la suspensión del servicio.
+                    {% endif %}
+                    <button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Cerrar" onclick="sessionStorage.setItem('ocultar_aviso_vencimiento', '1')"></button>
+                </div>
+                <script>
+                    if (!sessionStorage.getItem('ocultar_aviso_vencimiento')) {
+                        document.getElementById('aviso-vencimiento-servidor').style.display = 'block';
+                    }
+                </script>
+                {% endif %}
                 {% block content %}{% endblock %}
             </div>
         </div>

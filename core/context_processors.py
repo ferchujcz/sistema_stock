@@ -1,7 +1,9 @@
 #from django.utils import timezone
+from django.conf import settings
 from django.db.models import Sum, Q
 from .models import Stock, Producto, Sucursal, Configuracion
 from django.utils import timezone
+from django.conf import settings
 
 def info_global(request):
     config = Configuracion.objects.first()
@@ -15,9 +17,20 @@ def info_global(request):
         if es_admin:
             sucursales = Sucursal.objects.all()
 
+    dias_vencimiento = None
+    fecha_venc_str = getattr(settings, 'FECHA_VENCIMIENTO_SERVIDOR', '') if 'settings' in globals() else ''
+    if fecha_venc_str:
+        try:
+            from datetime import date
+            fecha_venc = date.fromisoformat(fecha_venc_str.strip())
+            dias_vencimiento = (fecha_venc - timezone.localdate()).days
+        except ValueError:
+            dias_vencimiento = None
+
     return {
         'nombre_negocio': config.nombre_negocio,
         'todas_las_sucursales_contexto': sucursales,
+        'dias_vencimiento_servidor': dias_vencimiento,
     }
 def alertas_globales(request):
     """
