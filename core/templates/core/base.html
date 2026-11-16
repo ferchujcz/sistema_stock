@@ -171,6 +171,12 @@
                     {% else %}
                         <strong>Tu mensualidad está vencida.</strong> Realizá el pago para evitar la suspensión del servicio.
                     {% endif %}
+                    {% if request.user.is_superuser %}
+                    <form method="POST" action="{% url 'registrar_pago_mensualidad' %}" class="d-inline ms-2">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm btn-success py-0 px-2">Marcar como Pagado (+1 mes)</button>
+                    </form>
+                    {% endif %}
                     <button type="button" class="btn-close py-2" data-bs-dismiss="alert" aria-label="Cerrar" onclick="sessionStorage.setItem('ocultar_aviso_vencimiento', '1')"></button>
                 </div>
                 <script>

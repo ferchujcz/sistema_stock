@@ -84,6 +84,7 @@ urlpatterns = [
     path('configuracion/', views.configuracion, name='configuracion'),
     path('usuarios/', views.gestionar_usuarios, name='gestionar_usuarios'),
     path('admin-empleados/', views.admin_empleados, name='admin_empleados'),
+    path('negocio/registrar-pago/', views.registrar_pago_mensualidad, name='registrar_pago_mensualidad'),
     # Rutas para cambiar de local (La magia del admin)
     path('sucursal/seleccionar/<int:sucursal_id>/', views.seleccionar_sucursal, name='seleccionar_sucursal'),
 

@@ -93,6 +93,7 @@ DATABASES = {
 database_url = os.environ.get("DATABASE_URL")
 if database_url:
     DATABASES['default'] = dj_database_url.parse(database_url)
+    DATABASES['default']['CONN_MAX_AGE'] = 60
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [

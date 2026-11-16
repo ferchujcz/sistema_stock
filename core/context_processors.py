@@ -18,14 +18,28 @@ def info_global(request):
             sucursales = Sucursal.objects.all()
 
     dias_vencimiento = None
-    fecha_venc_str = getattr(settings, 'FECHA_VENCIMIENTO_SERVIDOR', '') if 'settings' in globals() else ''
-    if fecha_venc_str:
-        try:
-            from datetime import date
-            fecha_venc = date.fromisoformat(fecha_venc_str.strip())
-            dias_vencimiento = (fecha_venc - timezone.localdate()).days
-        except ValueError:
-            dias_vencimiento = None
+    negocio_venc = None
+    if request.user.is_authenticated:
+        perfil = getattr(request.user, 'perfilusuario', None)
+        if perfil and perfil.negocio and perfil.negocio.fecha_vencimiento:
+            negocio_venc = perfil.negocio.fecha_vencimiento
+        elif request.user.is_superuser:
+            from .models import Negocio
+            primer_neg = Negocio.objects.first()
+            if primer_neg and primer_neg.fecha_vencimiento:
+                negocio_venc = primer_neg.fecha_vencimiento
+
+    if negocio_venc:
+        dias_vencimiento = (negocio_venc - timezone.localdate()).days
+    else:
+        fecha_venc_str = getattr(settings, 'FECHA_VENCIMIENTO_SERVIDOR', '') if 'settings' in globals() else ''
+        if fecha_venc_str:
+            try:
+                from datetime import date
+                fecha_venc = date.fromisoformat(fecha_venc_str.strip())
+                dias_vencimiento = (fecha_venc - timezone.localdate()).days
+            except ValueError:
+                dias_vencimiento = None
 
     return {
         'nombre_negocio': config.nombre_negocio,

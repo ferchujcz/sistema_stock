@@ -2649,3 +2649,21 @@ def admin_empleados(request):
         'sucursales': mis_sucursales,
         'lista_permisos': PERMISOS_SISTEMA,
     })
+
+
+@login_required
+def registrar_pago_mensualidad(request):
+    if not request.user.is_superuser:
+        messages.error(request, "Solo el superadministrador puede registrar pagos de mensualidad.")
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        perfil = getattr(request.user, 'perfilusuario', None)
+        negocio = perfil.negocio if (perfil and perfil.negocio) else Negocio.objects.first()
+        if negocio:
+            hoy = timezone.localdate()
+            base_fecha = negocio.fecha_vencimiento if (negocio.fecha_vencimiento and negocio.fecha_vencimiento > hoy) else hoy
+            negocio.fecha_vencimiento = base_fecha + timezone.timedelta(days=30)
+            negocio.save(update_fields=['fecha_vencimiento'])
+            messages.success(request, f"Pago registrado. Nuevo vencimiento: {negocio.fecha_vencimiento.strftime('%d/%m/%Y')}.")
+    return redirect(request.META.get('HTTP_REFERER', 'dashboard'))

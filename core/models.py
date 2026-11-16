@@ -13,6 +13,7 @@ class Negocio(models.Model):
     plan = models.CharField(max_length=50, default='basico') 
     activo = models.BooleanField(default=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_vencimiento = models.DateField(null=True, blank=True)
 
     def __str__(self):
         return self.nombre
@@ -320,6 +321,7 @@ class SesionEscaneo(models.Model):
     ultimo_codigo = models.CharField(max_length=100, blank=True, null=True)
     codigo_procesado = models.BooleanField(default=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_vencimiento = models.DateField(null=True, blank=True)
 
     def __str__(self):
         return str(self.uuid)
