@@ -69,6 +69,7 @@ urlpatterns = [
 
     # --- NUEVA RUTA PARA CIERRE DE TURNO ---
     path('caja/cerrar-turno/', views.cerrar_turno, name='cerrar_turno'),
+    path('gastos/', views.agregar_gasto, name='agregar_gasto'),
     
     # --- VISTAS API ---
     path('api/buscar-productos/', views.buscar_productos, name='buscar_productos'),
@@ -82,6 +83,7 @@ urlpatterns = [
 
     path('configuracion/', views.configuracion, name='configuracion'),
     path('usuarios/', views.gestionar_usuarios, name='gestionar_usuarios'),
+    path('admin-empleados/', views.admin_empleados, name='admin_empleados'),
     # Rutas para cambiar de local (La magia del admin)
     path('sucursal/seleccionar/<int:sucursal_id>/', views.seleccionar_sucursal, name='seleccionar_sucursal'),
 

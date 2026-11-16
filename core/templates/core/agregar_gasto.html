@@ -1,0 +1,73 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="row">
+        <div class="col-md-5 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="bi bi-cash-coin me-2"></i>Registrar Gasto del Turno</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small">
+                        Los gastos registrados aquí se descontarán automáticamente del efectivo esperado en el próximo <strong>Cierre de Caja</strong> y se reflejarán en el <strong>Balance Financiero</strong>.
+                    </p>
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="descripcion" class="form-label fw-bold">Descripción del Gasto</label>
+                            <input type="text" class="form-control" id="descripcion" name="descripcion" placeholder="Ej: Compra de bolsas, hielo, flete..." required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="monto" class="form-label fw-bold">Monto ($)</label>
+                            <input type="number" step="0.01" min="0.01" class="form-control" id="monto" name="monto" placeholder="0.00" required>
+                        </div>
+                        <button type="submit" class="btn btn-danger w-100 fw-bold">
+                            <i class="bi bi-plus-circle me-2"></i>Guardar Gasto
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-7">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>Gastos del Turno Actual</h5>
+                    <span class="badge bg-danger fs-6">Total: ${{ total_gastos_turno|floatformat:2 }}</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Fecha / Hora</th>
+                                    <th>Descripción</th>
+                                    <th>Registrado por</th>
+                                    <th class="text-end">Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for gasto in gastos_turno %}
+                                <tr>
+                                    <td>{{ gasto.fecha|date:"d/m/Y H:i" }}</td>
+                                    <td>{{ gasto.descripcion }}</td>
+                                    <td>{{ gasto.registrado_por.username|default:"-" }}</td>
+                                    <td class="text-end fw-bold text-danger">-${{ gasto.monto|floatformat:2 }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">
+                                        No hay gastos registrados desde el último cierre de caja.
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,160 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    {% if not verificado %}
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-5">
+            <div class="card shadow border-0">
+                <div class="card-header bg-dark text-white text-center py-3">
+                    <h5 class="mb-0"><i class="bi bi-shield-lock-fill me-2"></i>Acceso de Administrador</h5>
+                </div>
+                <div class="card-body p-4">
+                    <p class="text-muted text-center mb-4">
+                        Ingresá tu contraseña de administrador para crear empleados y asignar permisos de acceso.
+                    </p>
+                    <form method="POST">
+                        {% csrf_token %}
+                        <input type="hidden" name="accion" value="verificar_password">
+                        <div class="mb-3">
+                            <label for="admin_password" class="form-label fw-bold">Contraseña</label>
+                            <input type="password" class="form-control" id="admin_password" name="admin_password" required autofocus>
+                        </div>
+                        <button type="submit" class="btn btn-dark w-100 fw-bold">
+                            <i class="bi bi-unlock-fill me-2"></i>Ingresar
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold mb-0"><i class="bi bi-people-fill me-2"></i>Administración de Empleados y Permisos</h3>
+        <span class="badge bg-success fs-6">Sesión de Admin Verificada</span>
+    </div>
+
+    <div class="row">
+        <!-- CREAR EMPLEADO -->
+        <div class="col-lg-5 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="bi bi-person-plus-fill me-2"></i>Crear Nuevo Empleado</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <input type="hidden" name="accion" value="crear_empleado">
+                        <div class="mb-2">
+                            <label class="form-label fw-bold">Nombre de Usuario</label>
+                            <input type="text" name="username" class="form-control" required>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold">Email (opcional)</label>
+                            <input type="email" name="email" class="form-control">
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label fw-bold">Contraseña</label>
+                            <input type="password" name="password" class="form-control" required>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label fw-bold">Sucursal</label>
+                                <select name="sucursal_id" class="form-select">
+                                    <option value="">Todas / Sin asignar</option>
+                                    {% for suc in sucursales %}
+                                    <option value="{{ suc.id }}">{{ suc.nombre }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-bold">Rol</label>
+                                <select name="rol" class="form-select">
+                                    <option value="empleado" selected>Empleado</option>
+                                    <option value="admin">Administrador</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <label class="form-label fw-bold">Permisos de Pantallas (para Empleados):</label>
+                        <div class="row g-2 mb-3 border rounded p-2 bg-light">
+                            {% for clave, etiqueta in lista_permisos %}
+                            <div class="col-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="permisos" value="{{ clave }}" id="new_perm_{{ clave }}"
+                                           {% if clave == 'registrar_venta' or clave == 'dashboard' %}checked{% endif %}>
+                                    <label class="form-check-label small" for="new_perm_{{ clave }}">
+                                        {{ etiqueta }}
+                                    </label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100 fw-bold">
+                            <i class="bi bi-check-circle me-2"></i>Crear Empleado
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- LISTA DE EMPLEADOS Y EDICIÓN DE PERMISOS -->
+        <div class="col-lg-7">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="bi bi-person-badge me-2"></i>Empleados Registrados</h5>
+                </div>
+                <div class="card-body">
+                    {% for perfil in usuarios %}
+                    <div class="border rounded p-3 mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                                <strong class="fs-5">{{ perfil.usuario.username }}</strong>
+                                <span class="badge {% if perfil.rol == 'admin' %}bg-danger{% else %}bg-secondary{% endif %} ms-2">
+                                    {{ perfil.get_rol_display }}
+                                </span>
+                                {% if perfil.sucursal %}
+                                <span class="badge bg-info text-dark ms-1">{{ perfil.sucursal.nombre }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        {% if perfil.rol != 'admin' %}
+                        <form method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="accion" value="actualizar_permisos">
+                            <input type="hidden" name="perfil_id" value="{{ perfil.id }}">
+                            <div class="row g-2 mb-2">
+                                {% for clave, etiqueta in lista_permisos %}
+                                <div class="col-md-4 col-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="permisos" value="{{ clave }}"
+                                               id="perm_{{ perfil.id }}_{{ clave }}"
+                                               {% if perfil.permisos|default_if_none:"" %}{% endif %}
+                                               {% for k, v in perfil.permisos.items %}{% if k == clave and v %}checked{% endif %}{% endfor %}>
+                                        <label class="form-check-label small" for="perm_{{ perfil.id }}_{{ clave }}">
+                                            {{ etiqueta }}
+                                        </label>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            <button type="submit" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-save me-1"></i>Guardar Permisos
+                            </button>
+                        </form>
+                        {% else %}
+                        <p class="text-muted small mb-0">Los administradores tienen acceso total a todas las pantallas.</p>
+                        {% endif %}
+                    </div>
+                    {% empty %}
+                    <p class="text-muted text-center my-4">No hay empleados registrados en este negocio.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

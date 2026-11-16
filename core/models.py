@@ -62,6 +62,12 @@ class PerfilUsuario(models.Model):
     negocio = models.ForeignKey(Negocio, on_delete=models.CASCADE, related_name='empleados', null=True) # <--- CLAVE SAAS
     sucursal = models.ForeignKey(Sucursal, on_delete=models.SET_NULL, null=True, blank=True)
     rol = models.CharField(max_length=20, choices=ROLES_CHOICES, default='empleado')
+    permisos = models.JSONField(default=dict, blank=True)
+
+    def tiene_permiso(self, clave):
+        if self.rol == 'admin':
+            return True
+        return bool(self.permisos.get(clave, False))
 
     def __str__(self):
         return f"{self.usuario.username} - {self.get_rol_display()}"
@@ -281,6 +287,7 @@ class CierreTurno(models.Model):
     total_ventas_qr = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_cobros_fiado = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_pagos_proveedor = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_gastos = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     monto_en_caja_declarado = models.DecimalField(max_digits=10, decimal_places=2)
 
@@ -289,7 +296,7 @@ class CierreTurno(models.Model):
 
     @property
     def diferencia_caja(self):
-        total_calculado_efectivo = self.total_ventas_efectivo + self.total_cobros_fiado - self.total_pagos_proveedor
+        total_calculado_efectivo = self.total_ventas_efectivo + self.total_cobros_fiado - self.total_pagos_proveedor - self.total_gastos
         return self.monto_en_caja_declarado - total_calculado_efectivo
     
 

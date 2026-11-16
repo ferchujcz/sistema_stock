@@ -683,7 +683,7 @@ def registrar_venta(request):
                             perc = config.recargo_credito_porcentaje if (hay_producto_normal or not prod.aplica_recargo_individual) else prod.recargo_credito_individual
                             descuento_recargo += item_sub * (perc / Decimal('100'))
                         elif metodo_pago == 'debito':
-                            perc = Decimal('0.00') if (hay_producto_normal or not prod.aplica_recargo_individual) else prod.recargo_credito_individual
+                            perc = config.recargo_debito_porcentaje if (hay_producto_normal or not prod.aplica_recargo_individual) else prod.recargo_credito_individual
                             descuento_recargo += item_sub * (perc / Decimal('100'))
                         elif metodo_pago == 'qr':
                             perc = config.recargo_qr_porcentaje if (hay_producto_normal or not prod.aplica_recargo_individual) else prod.recargo_qr_individual
@@ -860,7 +860,7 @@ def importar_stock_excel(request):
 
             # 1. Obtenemos los datos actuales de la BD para comparar
             # Usamos diccionarios para una búsqueda rápida
-            proveedores_actuales = {p.nombre.lower(): p for p in Proveedor.objects.filter(negocio=sucursal_usuario.negocio) if "sucursal_usuario" in locals() and sucursal_usuario else Proveedor.objects.all()}
+            proveedores_actuales = {p.nombre.lower(): p for p in (Proveedor.objects.filter(negocio=sucursal_usuario.negocio) if "sucursal_usuario" in locals() and sucursal_usuario else Proveedor.objects.all())}
             productos_actuales = {p.codigo_barras: p for p in Producto.objects.filter(codigo_barras__isnull=False, codigo_barras__ne='')}
 
             filas_confirmadas = []    # Verde - Coincidencia exacta de producto
@@ -1991,6 +1991,7 @@ def cerrar_turno(request):
     ventas = Venta.objects.filter(sucursal=sucursal_usuario, fecha_hora__gt=fecha_inicio)
     pagos_clientes = PagoCliente.objects.filter(sucursal=sucursal_usuario, fecha__gt=fecha_inicio)
     pagos_proveedores = PagoProveedor.objects.filter(sucursal=sucursal_usuario, fecha__gt=fecha_inicio)
+    gastos_turno = GastoLocal.objects.filter(sucursal=sucursal_usuario, fecha__gt=fecha_inicio)
     
     # 3. Calcular totales con el nuevo método mixto
     total_efectivo = ventas.aggregate(t=Sum(Case(When(metodo_pago='efectivo', then='total'), default='pago_efectivo', output_field=DecimalField())))['t'] or 0
@@ -2003,9 +2004,10 @@ def cerrar_turno(request):
     # --- ACÁ ESTÁN LAS VARIABLES DECLARADAS ANTES DE USARLAS ---
     total_cobros = pagos_clientes.aggregate(tot=Coalesce(Sum('monto'), Decimal('0.00'), output_field=DecimalField()))['tot']
     total_pagos = pagos_proveedores.aggregate(tot=Coalesce(Sum('monto'), Decimal('0.00'), output_field=DecimalField()))['tot']
+    total_gastos = gastos_turno.aggregate(tot=Coalesce(Sum('monto'), Decimal('0.00'), output_field=DecimalField()))['tot']
 
     # 4. Calcular el dinero que DEBERÍA HABER en caja (efectivo)
-    caja_calculada = total_efectivo + total_cobros - total_pagos
+    caja_calculada = total_efectivo + total_cobros - total_pagos - total_gastos
 
     if request.method == 'POST':
         monto_declarado_str = request.POST.get('monto_en_caja_declarado')
@@ -2023,6 +2025,7 @@ def cerrar_turno(request):
                 total_ventas_qr=total_qr,
                 total_cobros_fiado=total_cobros,
                 total_pagos_proveedor=total_pagos,
+                total_gastos=total_gastos,
                 monto_en_caja_declarado=monto_declarado
             )
 
@@ -2039,6 +2042,7 @@ def cerrar_turno(request):
         'total_qr': total_qr,
         'total_cobros_fiado': total_cobros,
         'total_pagos_proveedor': total_pagos,
+        'total_gastos': total_gastos,
         'caja_calculada': caja_calculada,
     }
     return render(request, 'core/cerrar_turno.html', context)
@@ -2498,3 +2502,150 @@ def buscar_clientes(request):
     } for c in clientes]
 
     return JsonResponse(resultados, safe=False)
+
+
+# =========================================================
+# PERMISOS DE EMPLEADOS, ADMIN EMPLEADOS Y GASTOS DE TURNO
+# =========================================================
+PERMISOS_SISTEMA = [
+    ('dashboard', 'Dashboard'),
+    ('registrar_venta', 'Registrar Venta'),
+    ('agregar_gasto', 'Agregar Gastos'),
+    ('cerrar_turno', 'Cierre de Caja'),
+    ('historial_ventas', 'Historial de Ventas'),
+    ('stock', 'Stock e Inventario'),
+    ('productos', 'Productos y Precios'),
+    ('proveedores', 'Proveedores'),
+    ('clientes', 'Clientes y Cta. Cte.'),
+    ('reportes', 'Balance Financiero'),
+    ('configuracion', 'Configuración'),
+]
+
+
+def usuario_tiene_permiso(user, clave):
+    if not user.is_authenticated:
+        return False
+    if user.is_superuser:
+        return True
+    perfil = getattr(user, 'perfilusuario', None)
+    if not perfil:
+        return False
+    return perfil.tiene_permiso(clave)
+
+
+@login_required
+def agregar_gasto(request):
+    if not usuario_tiene_permiso(request.user, 'agregar_gasto'):
+        messages.error(request, "No tenés permiso para acceder a Gastos.")
+        return redirect('dashboard')
+
+    sucursal_usuario = obtener_sucursal_usuario(request)
+    if not sucursal_usuario:
+        messages.error(request, "Necesitás estar asignado a una sucursal para registrar gastos.")
+        return redirect('dashboard')
+
+    ultimo_cierre = CierreTurno.objects.filter(sucursal=sucursal_usuario).order_by('-fecha_cierre_turno').first()
+    fecha_inicio = ultimo_cierre.fecha_cierre_turno if ultimo_cierre else timezone.make_aware(datetime.min)
+
+    if request.method == 'POST':
+        descripcion = request.POST.get('descripcion', '').strip()
+        monto_str = request.POST.get('monto', '').strip()
+        if descripcion and monto_str:
+            try:
+                monto = Decimal(monto_str)
+                if monto <= 0:
+                    raise ValueError("El monto debe ser mayor a cero.")
+                GastoLocal.objects.create(
+                    sucursal=sucursal_usuario,
+                    descripcion=descripcion,
+                    monto=monto,
+                    registrado_por=request.user,
+                )
+                messages.success(request, "Gasto registrado correctamente.")
+            except Exception as e:
+                messages.error(request, f"Error al guardar gasto: {e}")
+        return redirect('agregar_gasto')
+
+    gastos_turno = GastoLocal.objects.filter(
+        sucursal=sucursal_usuario,
+        fecha__gt=fecha_inicio,
+    ).select_related('registrado_por').order_by('-fecha')
+    total_gastos_turno = gastos_turno.aggregate(
+        tot=Coalesce(Sum('monto'), Decimal('0.00'), output_field=DecimalField())
+    )['tot']
+
+    return render(request, 'core/agregar_gasto.html', {
+        'gastos_turno': gastos_turno,
+        'total_gastos_turno': total_gastos_turno,
+    })
+
+
+@login_required
+def admin_empleados(request):
+    if not usuario_tiene_permiso(request.user, 'reportes'):
+        messages.error(request, "Acceso denegado. No tenés permiso para ver Balance Financiero.")
+        return redirect('dashboard')
+
+    verificado = bool(request.session.get('admin_empleados_verificado', False))
+
+    if request.method == 'POST' and request.POST.get('accion') == 'verificar_password':
+        password = request.POST.get('admin_password', '')
+        if request.user.check_password(password):
+            request.session['admin_empleados_verificado'] = True
+            verificado = True
+        else:
+            messages.error(request, "Contraseña incorrecta.")
+        return redirect('admin_empleados')
+
+    if not verificado:
+        return render(request, 'core/admin_empleados.html', {'verificado': False})
+
+    mi_negocio = request.user.perfilusuario.negocio if hasattr(request.user, 'perfilusuario') else None
+    if not mi_negocio and not request.user.is_superuser:
+        messages.error(request, "Tu usuario no está vinculado a ningún negocio.")
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        accion = request.POST.get('accion')
+        if accion == 'crear_empleado':
+            username = request.POST.get('username', '').strip()
+            email = request.POST.get('email', '').strip()
+            password = request.POST.get('password', '')
+            sucursal_id = request.POST.get('sucursal_id')
+            rol = request.POST.get('rol', 'empleado')
+            permisos_seleccionados = request.POST.getlist('permisos')
+            permisos_dict = {clave: (clave in permisos_seleccionados) for clave, _ in PERMISOS_SISTEMA}
+            try:
+                with transaction.atomic():
+                    nuevo_user = User.objects.create_user(username=username, email=email, password=password)
+                    sucursal_obj = Sucursal.objects.get(id=sucursal_id, negocio=mi_negocio) if sucursal_id else None
+                    PerfilUsuario.objects.create(
+                        usuario=nuevo_user,
+                        negocio=mi_negocio,
+                        sucursal=sucursal_obj,
+                        rol=rol,
+                        permisos=permisos_dict,
+                    )
+                messages.success(request, f"Empleado {username} creado exitosamente.")
+            except Exception as e:
+                messages.error(request, f"Error al crear empleado: {e}")
+            return redirect('admin_empleados')
+
+        elif accion == 'actualizar_permisos':
+            perfil_id = request.POST.get('perfil_id')
+            permisos_seleccionados = request.POST.getlist('permisos')
+            permisos_dict = {clave: (clave in permisos_seleccionados) for clave, _ in PERMISOS_SISTEMA}
+            perfil = get_object_or_404(PerfilUsuario, id=perfil_id, negocio=mi_negocio)
+            perfil.permisos = permisos_dict
+            perfil.save(update_fields=['permisos'])
+            messages.success(request, f"Permisos de {perfil.usuario.username} actualizados.")
+            return redirect('admin_empleados')
+
+    usuarios_negocio = PerfilUsuario.objects.filter(negocio=mi_negocio).select_related('usuario', 'sucursal')
+    mis_sucursales = Sucursal.objects.filter(negocio=mi_negocio)
+    return render(request, 'core/admin_empleados.html', {
+        'verificado': True,
+        'usuarios': usuarios_negocio,
+        'sucursales': mis_sucursales,
+        'lista_permisos': PERMISOS_SISTEMA,
+    })

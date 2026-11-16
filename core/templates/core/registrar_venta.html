@@ -395,11 +395,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     recargoItem = itemSubtotal * (porcentaje / 100);
                 }
                 else if (metodoPago === 'debito') {
-                    const porcentaje = item.aplica_recargo_individual ? (item.recargo_credito_individual || 0) : config.recargoDebito;
+                    const porcentaje = (hayProductoNormal || !item.aplica_recargo_individual) ? config.recargoDebito : (item.recargo_credito_individual || 0);
                     recargoItem = itemSubtotal * (porcentaje / 100);
                 } 
                 else if (metodoPago === 'qr') {
-                    const porcentaje = item.aplica_recargo_individual ? (item.recargo_qr_individual || 0) : config.recargoQR;
+                    const porcentaje = (hayProductoNormal || !item.aplica_recargo_individual) ? config.recargoQR : (item.recargo_qr_individual || 0);
                     recargoItem = itemSubtotal * (porcentaje / 100);
                 }
             }

@@ -29,6 +29,10 @@
                             <span>(-) Pagos a Proveedores (Efectivo)</span>
                             <span class="fw-bold text-danger">-${{ total_pagos_proveedor|floatformat:2 }}</span>
                         </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                            <span>(-) Gastos del Turno</span>
+                            <span class="fw-bold text-danger">-${{ total_gastos|floatformat:2 }}</span>
+                        </li>
                         
                         <li class="list-group-item d-flex justify-content-between align-items-center mt-3 py-3 border-top border-bottom">
                             <span class="fw-bold fs-5">= EFECTIVO ESPERADO</span>
